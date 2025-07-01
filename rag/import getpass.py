@@ -70,5 +70,7 @@ graph_builder.add_edge(START, "retrieve")
 graph = graph_builder.compile()
 
 
-response = graph.invoke({"question": "What is Task Decomposition?"})
+response = graph.invoke({"question": """Please tell me literal bullet points. For example: Planning
+Subgoal and decomposition: The agent breaks down large tasks into smaller, manageable subgoals, enabling efficient handling of complex tasks.
+Reflection and refinement: The agent can do self-criticism and self-reflection over past actions, learn from mistakes and refine them for future steps, thereby improving the quality of final results. Bullet point: Planning. """})
 print(response["answer"])
