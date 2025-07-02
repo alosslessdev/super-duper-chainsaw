@@ -18,7 +18,7 @@ pip install langchain-text-splitters langchain-community langgraph "langchain[go
 
 Luego clonar el repositorio yendo al boton code en esta página, copiando el link y yendo a la seccion de Version de Control en Visual Studio Code, y clone. O con `git clone`.  
 Registrese en Langsmith: https://smith.langchain.com/ Durante el proceso de registro, haga click en Generate API key, copie el codigo o key que le da y guardelo en un lugar seguro.  
-Vaya a https://ai.google.dev/gemini-api/docs y haga click en Get a Gemini API key, copie el codigo o key que le da y guardelo en un lugar seguro. Durante la ejecucion del programa en visual studio code, el programa le pedira estos keys. Primero el de Google, luego el de LangSmith.  
+Vaya a https://ai.google.dev/gemini-api/docs y haga click en Get a Gemini API key, copie el codigo o key que le da y guardelo en un lugar seguro. Durante la ejecucion del programa en Visual Studio Code, el programa le pedira estos keys. Primero el de Google, luego el de LangSmith.  
 
 Actualmente la parte de RAG fue probado en un sistema linux con linux mint 22.1. Parece que es suficientemente ligero para un servidor de 2 dolares al mes  
 
