@@ -1,7 +1,7 @@
-#Para ejecutar el RAG en Google Colab, 
+# Para ejecutar el RAG en Google Colab, 
 seguir el tutorial: https://python.langchain.com/docs/tutorials/rag/ Seleccione Gemini para el modelo y Google para los embeddings. Google Colab dara un entorno Linux el cual sera el sistema de producción.
 
-#Como ejecutar el RAG localmente
+# Como ejecutar el RAG localmente
 Sacado del tutorial: https://python.langchain.com/docs/tutorials/rag/
 Instalar las dependencias:
 Primero ver si esta instalado Python, si no, instalarlo. Se verifica ejecutando en la linea de comandos `python3` en sistemas Linux basados en Ubuntu/Debian como Linux Mint, o el comando en PowerShell `python` en Windows. 
