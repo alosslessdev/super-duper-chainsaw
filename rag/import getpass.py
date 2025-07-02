@@ -44,7 +44,7 @@ for page in pdf_reader.pages:
 
 
 # Load and chunk contents of the blog
-loader = WebBaseLoader(
+""" loader = WebBaseLoader(
     web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
     bs_kwargs=dict(
         parse_only=bs4.SoupStrainer(
@@ -52,15 +52,20 @@ loader = WebBaseLoader(
         )
     ),
 )
-docs = loader.load()
+ """
+
+
+# Docs es un string
+#docs = loader.load()
+docs = text
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 all_splits = text_splitter.split_documents(docs)
 
-chunks = text_splitter.split_text(text) 
+#chunks = text_splitter.split_text(text) 
 
-'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2' # 471M
-'sentence-transformers/paraphrase-multilingual-mpnet-base-v2' #1.11G
+# 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2' # 471M
+# 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2' #1.11G
 
 
 
