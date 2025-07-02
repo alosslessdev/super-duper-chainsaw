@@ -14,6 +14,9 @@ from langchain_core.vectorstores import InMemoryVectorStore
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
 
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
+
 llm = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
 
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
