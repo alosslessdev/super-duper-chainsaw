@@ -55,9 +55,10 @@ for page in pdf_reader.pages:
  """
 
 
+
 # Docs es un string
 #docs = loader.load()
-docs = text
+docs = [Document(page_content=text)]
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 all_splits = text_splitter.split_documents(docs)
@@ -104,7 +105,7 @@ graph_builder.add_edge(START, "retrieve")
 graph = graph_builder.compile()
 
 
-response = graph.invoke({"question": """Please tell me literal bullet points. For example: Planning
-Subgoal and decomposition: The agent breaks down large tasks into smaller, manageable subgoals, enabling efficient handling of complex tasks.
-Reflection and refinement: The agent can do self-criticism and self-reflection over past actions, learn from mistakes and refine them for future steps, thereby improving the quality of final results. Bullet point: Planning. """})
+response = graph.invoke({"question": """Por favor dime los puntos en negrita del documento. TÍTULO I
+De los derechos y deberes fundamentales. Respuesta: De los derechos y deberes fundamentales. TÍTULO II
+De la Corona. Respuesta: De la Corona."""})
 print(response["answer"])
