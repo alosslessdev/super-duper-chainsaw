@@ -15,12 +15,14 @@ from PyPDF2 import PdfReader
 from langchain.embeddings import HuggingFaceEmbeddings
 from sentence_transformers import SentenceTransformer
 from langchain.vectorstores import FAISS
+from fastapi import FastAPI
 
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
 
 os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
+app = FastAPI()
 
 llm = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
 
@@ -106,4 +108,7 @@ graph = graph_builder.compile()
 
 
 response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""})
-print(response["answer"])
+
+@app.get("/answer")
+def answer():
+    print(response["answer"])
