@@ -105,7 +105,5 @@ graph_builder.add_edge(START, "retrieve")
 graph = graph_builder.compile()
 
 
-response = graph.invoke({"question": """Por favor dime los puntos en negrita del documento. TÍTULO I
-De los derechos y deberes fundamentales. Respuesta: De los derechos y deberes fundamentales. TÍTULO II
-De la Corona. Respuesta: De la Corona."""})
+response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""})
 print(response["answer"])
