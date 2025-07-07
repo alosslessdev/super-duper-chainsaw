@@ -3,7 +3,6 @@ import os
 import bs4
 import requests
 from langchain import hub
-from langchain_community.document_loaders import WebBaseLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import START, StateGraph
@@ -12,15 +11,10 @@ from langchain.chat_models import init_chat_model
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.vectorstores import InMemoryVectorStore
 from PyPDF2 import PdfReader
-from langchain.embeddings import HuggingFaceEmbeddings
-from sentence_transformers import SentenceTransformer
-from langchain.vectorstores import FAISS
 from fastapi import FastAPI, Depends
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 from pydantic import BaseModel
-
-
 
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
@@ -57,32 +51,12 @@ for page in pdf_reader.pages:
     text += page.extract_text()
 
 
-
-# Load and chunk contents of the blog
-""" loader = WebBaseLoader(
-    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-    bs_kwargs=dict(
-        parse_only=bs4.SoupStrainer(
-            class_=("post-content", "post-title", "post-header")
-        )
-    ),
-)
- """
-
-
-
 # Docs es un string
 #docs = loader.load()
 docs = [Document(page_content=text)]
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 all_splits = text_splitter.split_documents(docs)
-
-#chunks = text_splitter.split_text(text) 
-
-# 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2' # 471M
-# 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2' #1.11G
-
 
 
 # Index chunks
