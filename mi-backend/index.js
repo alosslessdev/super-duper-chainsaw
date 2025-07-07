@@ -36,13 +36,6 @@ app.post('/usuarios', (req, res) => {
 
 // RUTAS PARA TAREAS
 
-// Obtener todas las tareas
-app.get('/tareas', (req, res) => {
-  conexion.query('SELECT * FROM tarea', (error, resultados) => {
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(resultados);
-  });
-});
 
 // Obtener tarea por ID
 app.get('/tareas/:id', (req, res) => {
