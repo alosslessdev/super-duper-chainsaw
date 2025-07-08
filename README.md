@@ -8,7 +8,7 @@ Primero ver si esta instalado Python, si no, instalarlo. Se verifica ejecutando 
 Una vez instalado Python, ejecutar en Linux en sistemas basados en Ubuntu/Debian como Linux Mint:  
 
 ```
-python3 -m venv path/to/venv && path/to/venv/bin/pip install langchain-text-splitters langchain-community langgraph "langchain[google-genai]" langchain-google-genai langchain-core
+python3 -m venv path/to/venv && path/to/venv/bin/pip install requests PyPDF2 langchain-text-splitters langchain-community langgraph "langchain[google-genai]" langchain-google-genai langchain-core
 ```
 
 O en Windows:

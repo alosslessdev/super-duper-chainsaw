@@ -99,12 +99,8 @@ graph = graph_builder.compile()
 
 response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""})
 
-
-
-
 # A protected endpoint
 @app.get("/secure-data")
 async def llmAnswer(api_key: str = Depends(get_api_key)):
     return response["answer"]
 
-    
