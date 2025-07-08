@@ -97,7 +97,9 @@ graph_builder.add_edge(START, "retrieve")
 graph = graph_builder.compile()
 
 
-response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""})
+response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  
+                         Si hay una lista de puntos a hacer, muestra la lista. Escribe los resultados en formato JSON asi: {
+                         "tarea": "*poner tarea aqui*", "tarea": "*poner tarea aqui*", ***Continuar patrón***}"""})
 
 # A protected endpoint
 @app.get("/secure-data")

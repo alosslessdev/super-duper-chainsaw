@@ -1,3 +1,5 @@
+import { jsonrepair } from 'jsonrepair'
+
 const express = require('express');
 const conexion = require('./db'); // Importa la conexión
 const app = express();
@@ -80,6 +82,19 @@ app.delete('/tareas/:id', (req, res) => {
     res.json({ mensaje: 'Tarea eliminada' });
   });
 });
+
+try {
+  // The following is invalid JSON: is consists of JSON contents copied from 
+  // a JavaScript code base, where the keys are missing double quotes, 
+  // and strings are using single quotes:
+  const json = "{name: 'John'}"
+  
+  const repaired = jsonrepair(json)
+  
+  console.log(repaired) // '{"name": "John"}'
+} catch (err) {
+  console.error(err)
+}
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
