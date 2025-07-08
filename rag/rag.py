@@ -1,6 +1,5 @@
 import getpass
 import os
-import bs4
 import requests
 from langchain import hub
 from langchain_core.documents import Document
@@ -11,25 +10,29 @@ from langchain.chat_models import init_chat_model
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.vectorstores import InMemoryVectorStore
 from PyPDF2 import PdfReader
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 from pydantic import BaseModel
+from typing import Optional
+
 
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
 
 os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
+os.environ["LANGSMITH_API_KEY"] = getpass.getpass("API key for LangSmith")
+
+API_KEY = getpass.getpass("Set API key:")
+API_KEY_NAME = "X-API-Key"
 
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-class User(BaseModel):
-    username: str
-    email: str | None = None
-    full_name: str | None = None
-    disabled: bool | None = None
+def get_api_key(x_api_key: Optional[str] = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return x_api_key
 
 llm = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
 
@@ -96,28 +99,12 @@ graph = graph_builder.compile()
 
 response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""})
 
-async def llmAnswer():
+
+
+
+# A protected endpoint
+@app.get("/secure-data")
+async def llmAnswer(api_key: str = Depends(get_api_key)):
     return response["answer"]
 
-
-def fake_decode_token(token):
-    return User(
-        username=token + "fakedecoded", email="john@example.com", full_name="John Doe"
-    )
-
-
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    user = fake_decode_token(token)
-    return user
-
-
-@app.get("/users/me")
-async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
-    return current_user
-
-
-@app.get("/answer")
-async def answer(response: Annotated[str, Depends(oauth2_scheme)]):
-
-    return {"token": token}
     
