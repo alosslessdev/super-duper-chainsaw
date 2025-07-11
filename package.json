@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "express-session": "^1.18.1",
+    "pbkdf2-password": "^1.2.1"
+  }
+}

@@ -5,8 +5,35 @@ const util = require('util');
 const conexion = require('./db'); // Importa la conexión
 const app = express();
 const port = 3000;
+const hash = require('pbkdf2-password')();
+const session = require('express-session');
+
 
 app.use(express.json());
+
+//middleware de sesión
+app.use(session({
+  secret: 'clave-super-secreta',
+  resave: false,
+  saveUninitialized: false
+}));
+
+// 🔐 Middleware de protección
+function requireLogin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'No autorizado. Inicia sesión primero.' });
+  }
+  next();
+}
+
+/*¿Cómo lo usas?
+Una vez definido, lo puedes aplicar a cualquier ruta que quieras proteger. 
+Solo lo agregas como parámetro en esa ruta. Ejemplo: 
+app.get('/tareas', requireLogin, async (req, res) => {
+  // Esta ruta SOLO se puede acceder si estás logueado
+});
+*/
+
 
 // Promisificar la query para usar async/await
 const query = util.promisify(conexion.query).bind(conexion);
@@ -35,16 +62,68 @@ app.get('/usuarios/:id', async (req, res) => {
   }
 });
 
-// Crear usuario
-app.post('/usuarios', async (req, res) => {
-  const { email } = req.body;
+// Crear usuario / agregado lo de hash
+
+app.post('/usuarios', (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+  }
+
+  hash({ password }, (err, pass, salt, hashVal) => {
+    if (err) return res.status(500).json({ error: 'Error al hashear la contraseña' });
+
+    const sql = 'INSERT INTO usuario (email, password_hash, salt) VALUES (?, ?, ?)';
+    conexion.query(sql, [email, hashVal, salt], (error, resultados) => {
+      if (error) return res.status(500).json({ error: error.message });
+      res.status(201).json({ pk: resultados.insertId, email });
+    });
+  });
+});
+
+
+
+// Ruta para iniciar sesión
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña requeridos' });
+  }
+
   try {
-    const resultados = await query('INSERT INTO usuario (email) VALUES (?)', [email]);
-    res.status(201).json({ pk: resultados.insertId, email });
+    const resultados = await query('SELECT * FROM usuario WHERE email = ?', [email]);
+    if (resultados.length === 0) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = resultados[0];
+
+    hash({ password, salt: user.salt }, (err, pass, salt, hashVal) => {
+      if (err) return res.status(500).json({ error: 'Error al verificar contraseña' });
+
+      if (hashVal === user.password_hash) {
+        req.session.user = {
+          id: user.pk,
+          email: user.email
+        };
+        res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user });
+      } else {
+        res.status(401).json({ error: 'Contraseña incorrecta' });
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.post('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.json({ mensaje: 'Sesión cerrada' });
+  });
+});
+
 
 // RUTAS PARA TAREAS
 
