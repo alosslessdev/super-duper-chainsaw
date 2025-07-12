@@ -7,7 +7,7 @@ const app = express();
 const port = 3000;
 const hash = require('pbkdf2-password')();
 const session = require('express-session');
-
+import { jsonrepair } from 'jsonrepair'
 
 app.use(express.json());
 
@@ -251,6 +251,19 @@ app.post('/ia', async (req, res) => {
     res.status(500).json({ error: 'No se pudo conectar con Gemini' });
   }
 });
+
+try {
+  // The following is invalid JSON: is consists of JSON contents copied from 
+  // a JavaScript code base, where the keys are missing double quotes, 
+  // and strings are using single quotes:
+  const json = "{name: 'John'}"
+  
+  const repaired = jsonrepair(json)
+  
+  console.log(repaired) // '{"name": "John"}'
+} catch (err) {
+  console.error(err)
+}
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
