@@ -1,11 +1,15 @@
-require('dotenv').config();
-const axios = require('axios');
-const express = require('express');
-const util = require('util');
-const { google } = require('googleapis');
-const conexion = require('./db'); // Importa la conexión
+
+//require('dotenv').config();
+import axios from 'axios';
+import express from 'express';
+import util from 'util';
+import conexion from './db.js'; // Importa la conexión
 const app = express();
 const port = 3000;
+import hash from 'pbkdf2-password';
+import session from 'express-session';
+import { jsonrepair } from 'jsonrepair'
+
 
 app.use(express.json());
 
