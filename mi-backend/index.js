@@ -233,7 +233,7 @@ app.post('/tareas', async (req, res) => {
   }
 });
 
-
+// Actualizar tarea
 app.put('/tareas/:id', async (req, res) => {
   const id = req.params.id;
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
@@ -248,6 +248,7 @@ app.put('/tareas/:id', async (req, res) => {
   }
 });
 
+// Eliminar tarea
 app.delete('/tareas/:id', async (req, res) => {
   const id = req.params.id;
   try {
@@ -293,7 +294,7 @@ app.post('/tareas/ia/:id', async (req, res) => {
   }
 });
 
-// Ruta para probar IA con texto libre
+// Ruta para probar IA con texto libre --- Usar langchain, esto no tiene RAG
 app.post('/ia', async (req, res) => {
   const { prompt } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
@@ -321,6 +322,23 @@ app.post('/ia', async (req, res) => {
     res.status(500).json({ error: 'No se pudo conectar con Gemini' });
   }
 });
+
+app.listen(port, () => {
+  console.log(`Servidor corriendo en http://localhost:${port}`);
+});
+
+try {
+  // The following is invalid JSON: is consists of JSON contents copied from
+  // a JavaScript code base, where the keys are missing double quotes,
+  // and strings are using single quotes:
+  const json = "{name: 'John'}"
+
+  const repaired = jsonrepair(json)
+
+  console.log(repaired) // '{"name": "John"}'
+} catch (err) {
+  console.error(err)
+}
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
