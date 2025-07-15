@@ -52,6 +52,9 @@ doc_to_download = requests.get(URL)
 pdf_file = open("BOE-A-1978-31229-consolidado.pdf", "wb")
 pdf_file.write(doc_to_download.content)
 pdf_file.close() # Close the file after writing
+# hay que eliminar el archivo despues o bien, hacer que se lea directamente de la web
+# el frontend debera interactuar con el api de s3
+# solo sera para subir archivos por ahora para que de hojas de ruta
 
 pdf_file_obj = open('BOE-A-1978-31229-consolidado.pdf', 'rb')
 pdf_reader = PdfReader(pdf_file_obj)
