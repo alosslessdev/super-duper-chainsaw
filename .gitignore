@@ -36,4 +36,7 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-app-example
+# Android Profiling
+*.hprof
+node_modules
+.venv/

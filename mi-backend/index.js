@@ -10,6 +10,11 @@ import hash from 'pbkdf2-password';
 import session from 'express-session';
 import { jsonrepair } from 'jsonrepair'
 
+//const express = require('express');
+import swaggerUi from 'swagger-ui-express';
+import swaggerDocument from'./swagger.json' with {type: "json"};
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(express.json());
 
@@ -42,11 +47,12 @@ app.get('/tareas', requireLogin, async (req, res) => {
 const query = util.promisify(conexion.query).bind(conexion);
 
 // Configuración de OAuth2 para Google Calendar
-const oauth2Client = new google.auth.OAuth2(
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,     // e.g. 1035001014876-r71f38f2nacc4rotd0bjk2k015eusffg.apps.googleusercontent.com
   process.env.GOOGLE_CLIENT_SECRET, // e.g. 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
   process.env.GOOGLE_REDIRECT_URI   // e.g. http://localhost:3000/oauth2callback
-);
+); */
 
 // Rutas para iniciar OAuth y recibir callback
 
@@ -75,15 +81,18 @@ app.get('/oauth2callback', async (req, res) => {
 });
 
 // Si ya tienes tokens guardados en .env, configúralos aquí para usar en requests
-oauth2Client.setCredentials({
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* oauth2Client.setCredentials({
   access_token: process.env.GOOGLE_ACCESS_TOKEN,
   refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
   scope: 'https://www.googleapis.com/auth/calendar.events',
   token_type: 'Bearer',
   expiry_date: true // o timestamp si lo tienes
 });
-
-const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+ */
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+ */
 
 // RUTAS PARA USUARIOS
 // Obtener todos los usuarios
@@ -261,6 +270,8 @@ app.delete('/tareas/:id', async (req, res) => {
 });
 
 // RUTA IA CON TAREA POR ID
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
+// ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
 app.post('/tareas/ia/:id', async (req, res) => {
   const tareaId = req.params.id;
   try {
@@ -272,7 +283,7 @@ app.post('/tareas/ia/:id', async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://localhost:8000/secure-data`, //enviar api key en header lo cual no se hace ahora
       {
         contents: [
           {
@@ -294,34 +305,9 @@ app.post('/tareas/ia/:id', async (req, res) => {
   }
 });
 
-// Ruta para probar IA con texto libre --- Usar langchain, esto no tiene RAG
-app.post('/ia', async (req, res) => {
-  const { prompt } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
 
-  try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
 
-    const textoIA = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    res.json({ respuesta: textoIA });
-
-  } catch (error) {
-    console.error('Error al conectar con Gemini:', error.response?.data || error.message);
-    res.status(500).json({ error: 'No se pudo conectar con Gemini' });
-  }
-});
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
