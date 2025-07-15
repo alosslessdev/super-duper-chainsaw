@@ -42,11 +42,12 @@ app.get('/tareas', requireLogin, async (req, res) => {
 const query = util.promisify(conexion.query).bind(conexion);
 
 // Configuración de OAuth2 para Google Calendar
-const oauth2Client = new google.auth.OAuth2(
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,     // e.g. 1035001014876-r71f38f2nacc4rotd0bjk2k015eusffg.apps.googleusercontent.com
   process.env.GOOGLE_CLIENT_SECRET, // e.g. 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
   process.env.GOOGLE_REDIRECT_URI   // e.g. http://localhost:3000/oauth2callback
-);
+); */
 
 // Rutas para iniciar OAuth y recibir callback
 
@@ -75,15 +76,18 @@ app.get('/oauth2callback', async (req, res) => {
 });
 
 // Si ya tienes tokens guardados en .env, configúralos aquí para usar en requests
-oauth2Client.setCredentials({
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* oauth2Client.setCredentials({
   access_token: process.env.GOOGLE_ACCESS_TOKEN,
   refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
   scope: 'https://www.googleapis.com/auth/calendar.events',
   token_type: 'Bearer',
   expiry_date: true // o timestamp si lo tienes
 });
-
-const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+ */
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+ */
 
 // RUTAS PARA USUARIOS
 // Obtener todos los usuarios
