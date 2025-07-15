@@ -14,10 +14,10 @@
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "express-session": "^1.18.1",
-    "google": "^2.1.0",
     "jsonrepair": "^3.13.0",
     "mysql": "^2.18.1",
     "mysql2": "^3.14.2",
-    "pbkdf2-password": "^1.2.1"
+    "pbkdf2-password": "^1.2.1",
+    "swagger-ui-express": "^5.0.1"
   }
 }
