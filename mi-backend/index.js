@@ -281,7 +281,7 @@ app.post('/tareas/ia/:id', async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     const response = await axios.post(
-      `https://localhost:8000/secure-data`,
+      `https://localhost:8000/secure-data`, //enviar api key en header
       {
         contents: [
           {
