@@ -22,4 +22,9 @@ Vaya a https://ai.google.dev/gemini-api/docs y haga click en Get a Gemini API ke
 
 Actualmente la parte de RAG fue probado en un sistema linux con linux mint 22.1. Parece que es suficientemente ligero para un servidor de 2 dolares al mes  
 
+#Instalacion del backend
+Correr `npm install axios dotenv express express-session jsonrepair mysql mysql2 pbkdf2-password swagger-ui-express`
+
+
+
 Usando trunk based development, prompt engineering guide  
