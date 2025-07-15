@@ -270,6 +270,8 @@ app.delete('/tareas/:id', async (req, res) => {
 });
 
 // RUTA IA CON TAREA POR ID
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
+// ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
 app.post('/tareas/ia/:id', async (req, res) => {
   const tareaId = req.params.id;
   try {
@@ -281,7 +283,7 @@ app.post('/tareas/ia/:id', async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     const response = await axios.post(
-      `https://localhost:8000/secure-data`, //enviar api key en header
+      `https://localhost:8000/secure-data`, //enviar api key en header lo cual no se hace ahora
       {
         contents: [
           {
@@ -302,6 +304,8 @@ app.post('/tareas/ia/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al procesar la solicitud' });
   }
 });
+
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
 
 
 
