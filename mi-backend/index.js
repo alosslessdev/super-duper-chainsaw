@@ -10,6 +10,11 @@ import hash from 'pbkdf2-password';
 import session from 'express-session';
 import { jsonrepair } from 'jsonrepair'
 
+//const express = require('express');
+import swaggerUi from 'swagger-ui-express';
+import swaggerDocument from'./swagger.json' with {type: "json"};
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(express.json());
 
