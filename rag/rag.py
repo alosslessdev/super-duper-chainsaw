@@ -15,10 +15,6 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional
 from pydantic import BaseModel
 
-# Import Google Cloud Speech-to-Text
-from google.cloud import speech_v1p1beta1 as speech
-import io
-
 
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
@@ -118,37 +114,4 @@ response = graph.invoke({"question": """Por favor extrae todos los pasos que deb
 async def llmAnswer(api_key: str = Depends(get_api_key)):
     return response["answer"]
 
-# New endpoint for Speech-to-Text
-@app.post("/transcribe-audio")
-async def transcribe_audio(file: UploadFile = File(...), api_key: str = Depends(get_api_key)):
-    """
-    Transcribes an audio file using Google Speech-to-Text API.
-    Supports common audio formats (e.g., WAV, FLAC, MP3).
-    """
-    if not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail="Uploaded file is not an audio file.")
 
-    try:
-        content = await file.read()
-
-        client = speech.SpeechClient()
-
-        audio = speech.RecognitionAudio(content=content)
-        config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16, # Adjust based on your audio encoding
-            sample_rate_hertz=16000,  # Adjust based on your audio sample rate
-            language_code="es-ES",    # Set the language code (e.g., "en-US" for English, "es-ES" for Spanish)
-            enable_automatic_punctuation=True,
-        )
-
-        # Synchronous speech recognition request
-        response = client.recognize(config=config, audio=audio)
-
-        transcript = ""
-        for result in response.results:
-            transcript += result.alternatives[0].transcript + " "
-
-        return {"transcript": transcript.strip()}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Speech-to-Text transcription failed: {str(e)}")
