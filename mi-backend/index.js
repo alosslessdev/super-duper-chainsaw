@@ -270,6 +270,8 @@ app.delete('/tareas/:id', async (req, res) => {
 });
 
 // RUTA IA CON TAREA POR ID
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
+// ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
 app.post('/tareas/ia/:id', async (req, res) => {
   const tareaId = req.params.id;
   try {
@@ -281,7 +283,7 @@ app.post('/tareas/ia/:id', async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     const response = await axios.post(
-      `https://localhost:8000/secure-data`, //enviar api key en header
+      `https://localhost:8000/secure-data`, //enviar api key en header lo cual no se hace ahora
       {
         contents: [
           {
@@ -303,34 +305,9 @@ app.post('/tareas/ia/:id', async (req, res) => {
   }
 });
 
-// Ruta para probar IA con texto libre --- Usar langchain, esto no tiene RAG
-app.post('/ia', async (req, res) => {
-  const { prompt } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
 
-  try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
 
-    const textoIA = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    res.json({ respuesta: textoIA });
-
-  } catch (error) {
-    console.error('Error al conectar con Gemini:', error.response?.data || error.message);
-    res.status(500).json({ error: 'No se pudo conectar con Gemini' });
-  }
-});
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
