@@ -87,7 +87,8 @@ def process_pdf_from_url(pdf_url: str):
 class PDFRequest(BaseModel):
     pdf_url: str
     question: str = """Por favor extrae todos los pasos que debo hacer para completar lo que se 
-    plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista. Escribe los 
+    plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista. Estima el tiempo necesario 
+    para cada tarea en dias. Escribe los 
     resultados en formato JSON asi: {""tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
     \"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
     ***Continuar patrón***}"""
