@@ -33,52 +33,15 @@ API_KEY = getpass.getpass("Set API key:")
 API_KEY_NAME = "X-API-Key"
 
 app = FastAPI()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 def get_api_key(x_api_key: Optional[str] = Header(None)):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return x_api_key
 
+
 llm = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
-
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-
-vector_store = InMemoryVectorStore(embeddings)
-
-URL = "https://preguntapdf.s3.eu-south-2.amazonaws.com/BOE-A-1978-31229-consolidado.pdf"
-doc_to_download = requests.get(URL)
-
-pdf_file = open("BOE-A-1978-31229-consolidado.pdf", "wb")
-pdf_file.write(doc_to_download.content)
-pdf_file.close() # Close the file after writing
-# hay que eliminar el archivo despues o bien, hacer que se lea directamente de la web
-# el frontend debera interactuar con el api de s3
-# solo sera para subir archivos por ahora para que de hojas de ruta
-
-pdf_file_obj = open('BOE-A-1978-31229-consolidado.pdf', 'rb')
-pdf_reader = PdfReader(pdf_file_obj)
-
-text = ""
-for page in pdf_reader.pages:
-    text += page.extract_text()
-pdf_file_obj.close() # Close the file after reading
-
-
-# Docs es un string
-#docs = loader.load()
-docs = [Document(page_content=text)]
-
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-all_splits = text_splitter.split_documents(docs)
-
-
-# Index chunks
-_ = vector_store.add_documents(documents=all_splits)
-
-# Define prompt for question-answering
-# N.B. for non-US LangSmith endpoints, you may need to specify
-# api_url="https://api.smith.langchain.com" in hub.pull.
 prompt = hub.pull("rlm/rag-prompt")
 
 
@@ -102,19 +65,49 @@ def generate(state: State):
     return {"answer": response.content}
 
 
-# Compile application and test
-graph_builder = StateGraph(State).add_sequence([retrieve, generate])
-graph_builder.add_edge(START, "retrieve")
-graph = graph_builder.compile()
 
-
-response = graph.invoke({"question": """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  
-                         Si hay una lista de puntos a hacer, muestra la lista. Escribe los resultados en formato JSON asi: {
-                         "tarea": "*poner tarea aqui*", "tarea": "*poner tarea aqui*", ***Continuar patrón***}"""})
+# Utility to process PDF from URL
+def process_pdf_from_url(pdf_url: str):
+    doc_to_download = requests.get(pdf_url)
+    if doc_to_download.status_code != 200:
+        raise HTTPException(status_code=400, detail="Could not download PDF")
+    # Use in-memory bytes for PDF
+    from io import BytesIO
+    pdf_file_obj = BytesIO(doc_to_download.content)
+    pdf_reader = PdfReader(pdf_file_obj)
+    text = ""
+    for page in pdf_reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text
+    pdf_file_obj.close()
+    return text
 
 # A protected endpoint for LLM answer
-@app.get("/secure-data")
-async def llmAnswer(api_key: str = Depends(get_api_key)):
+class PDFRequest(BaseModel):
+    pdf_url: str
+    question: str = "Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista. Escribe los resultados en formato JSON asi: {\"tarea\": \"*poner tarea aqui*\", \"tarea\": \"*poner tarea aqui*\", ***Continuar patrón***}"
+
+@app.post("/secure-data")
+async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
+    text = process_pdf_from_url(data.pdf_url)
+    docs = [Document(page_content=text)]
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    all_splits = text_splitter.split_documents(docs)
+    vector_store = InMemoryVectorStore(embeddings)
+    _ = vector_store.add_documents(documents=all_splits)
+    def retrieve(state: State):
+        retrieved_docs = vector_store.similarity_search(state["question"])
+        return {"context": retrieved_docs}
+    def generate(state: State):
+        docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+        messages = prompt.invoke({"question": state["question"], "context": docs_content})
+        response = llm.invoke(messages)
+        return {"answer": response.content}
+    graph_builder = StateGraph(State).add_sequence([retrieve, generate])
+    graph_builder.add_edge(START, "retrieve")
+    graph = graph_builder.compile()
+    response = graph.invoke({"question": data.question})
     return response["answer"]
 
 
