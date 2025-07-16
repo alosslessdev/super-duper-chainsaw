@@ -86,7 +86,12 @@ def process_pdf_from_url(pdf_url: str):
 # A protected endpoint for LLM answer
 class PDFRequest(BaseModel):
     pdf_url: str
-    question: str = "Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista. Escribe los resultados en formato JSON asi: {\"tarea\": \"*poner tarea aqui*\", \"tarea\": \"*poner tarea aqui*\", ***Continuar patrón***}"
+    question: str = """Por favor extrae todos los pasos que debo hacer para completar lo que se 
+    plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista. Estima el tiempo necesario 
+    para cada tarea en dias. Escribe los 
+    resultados en formato JSON asi: {""tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
+    \"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
+    ***Continuar patrón***}"""
 
 @app.post("/secure-data")
 async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):

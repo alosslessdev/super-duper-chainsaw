@@ -40,3 +40,5 @@ yarn-error.*
 *.hprof
 node_modules
 .venv/
+expo-env.d.ts
+package-lock.json
