@@ -91,7 +91,7 @@ class PDFRequest(BaseModel):
     para cada tarea en dias. Escribe los 
     resultados en formato JSON asi: {""tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
     \"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
-    ***Continuar patrón***}"""
+    ***Continuar patrón 1 vez***} """
 
 @app.post("/secure-data")
 async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
