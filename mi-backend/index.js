@@ -2,17 +2,17 @@
 //require('dotenv').config();
 import axios from 'axios';
 import express from 'express';
+import session from 'express-session';
+import { jsonrepair } from 'jsonrepair';
+import hash from 'pbkdf2-password';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
 const app = express();
 const port = 3000;
-import hash from 'pbkdf2-password';
-import session from 'express-session';
-import { jsonrepair } from 'jsonrepair'
 
 //const express = require('express');
 import swaggerUi from 'swagger-ui-express';
-import swaggerDocument from'./swagger.json' with {type: "json"};
+import swaggerDocument from './swagger.json' with { type: "json" };
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
@@ -282,23 +282,38 @@ app.post('/tareas/ia/:id', async (req, res) => {
     const descripcion = resultados[0].descripcion;
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // Send header data and get JSON response with tasks
     const response = await axios.post(
-      `https://localhost:8000/secure-data`, //enviar api key en header lo cual no se hace ahora
+      `https://localhost:8000/secure-data`,
       {
-        contents: [
-          {
-            parts: [{ text: descripcion }]
-          }
-        ]
+        pdf_url: req.body.pdf_url || '', // If you want to send a PDF URL, otherwise remove
+        question: descripcion
       },
       {
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey // Send API key in header
+        }
       }
     );
 
-    const textoIA = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    res.json({ respuesta: textoIA });
-
+    // Expect response in format: { task_1: '...', task_2: '...', ... }
+    const tareasJson = response.data;
+    let results = [];
+    for (const [key, value] of Object.entries(tareasJson)) {
+      if (key.startsWith('task_')) {
+        // Insert each task into the DB (example: as new tareas for the user)
+        // You can customize fields as needed
+        const sql = `INSERT INTO tarea (descripcion, titulo, usuario) VALUES (?, ?, ?)`;
+        try {
+          const insertResult = await query(sql, [value, value, req.session.user?.id || null]);
+          results.push({ tarea: value, insertId: insertResult.insertId });
+        } catch (err) {
+          results.push({ tarea: value, error: err.message });
+        }
+      }
+    }
+    res.json({ tareasProcesadas: results });
   } catch (error) {
     console.error('Error en /tareas/ia/:id:', error.response?.data || error.message || error);
     res.status(500).json({ error: 'Error al procesar la solicitud' });
