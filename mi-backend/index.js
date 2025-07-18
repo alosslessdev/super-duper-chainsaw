@@ -124,7 +124,6 @@ app.post('/logout', (req, res) => {
   });
 });
 
-
 // RUTAS PARA TAREAS
 
 // Obtener todas las tareas
