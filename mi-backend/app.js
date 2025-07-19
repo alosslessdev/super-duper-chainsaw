@@ -306,10 +306,17 @@ app.post('/tareas/ia/:id', async (req, res) => {
     );
 
     // Expect response in format: [{ tarea: '...', tiempoEstimado: '...' }, ...]
-    const tareasJson = response.data;
+    try{
+    let tareasJsonStr = jsonrepair(response.data).replace(/\n/g, ""); //when does jsonrepair fail?
+    }catch (err){
+        console.error(err) // in case json is corrupted and unrecoverable by jsonrepair
+    }
+    tareasJsonStr = JSON.stringify(tareasJsonStr);
+    const tareasJson = JSON.parse(tareasJsonStr);
+
     let results = [];
-    // If tareasJson is an object, convert to array
     let tareasArray = Array.isArray(tareasJson) ? tareasJson : Object.values(tareasJson);
+
     for (const tareaObj of tareasArray) {
       // Support both { tarea, tiempoEstimado } and legacy string value
       let descripcion, titulo, tiempoEstimado;
@@ -341,23 +348,6 @@ app.post('/tareas/ia/:id', async (req, res) => {
 // hacer que guarde los datos temporalmente antes de modificar la base de datos
 
 
-
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
-});
-
-try {
-  // The following is invalid JSON: is consists of JSON contents copied from
-  // a JavaScript code base, where the keys are missing double quotes,
-  // and strings are using single quotes:
-  const json = "{name: 'John'}"
-
-  const repaired = jsonrepair(json)
-
-  console.log(repaired) // '{"name": "John"}'
-} catch (err) {
-  console.error(err)
-}
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
