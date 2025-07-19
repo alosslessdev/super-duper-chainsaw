@@ -1,10 +1,18 @@
+
 const mysql = require('mysql2');
+const readlineSync = require('readline-sync');
+
+// Prompt for DB connection parameters
+const host = readlineSync.question('Host de la base de datos (default: localhost): ', { defaultInput: 'localhost' }) || 'localhost';
+const user = readlineSync.question('Usuario de la base de datos (default: root): ', { defaultInput: 'root' }) || 'root';
+const password = readlineSync.question('Contraseña de la base de datos (puede estar vacía): ', { hideEchoBack: true }) || '';
+const database = readlineSync.question('Nombre de la base de datos (default: gestion_tareas): ', { defaultInput: 'gestion_tareas' }) || 'gestion_tareas';
 
 const conexion = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',          // Cambia si usas otro usuario
-  password: '',          // Cambia si tienes contraseña
-  database: 'gestion_tareas'  // El nombre de la base que creaste
+  host,
+  user,
+  password,
+  database
 });
 
 conexion.connect(error => {
