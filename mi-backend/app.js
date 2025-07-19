@@ -300,21 +300,30 @@ app.post('/tareas/ia/:id', async (req, res) => {
       }
     );
 
-    // Expect response in format: { task_1: '...', task_2: '...', ... }
-    // add time estimation 
+    // Expect response in format: [{ tarea: '...', tiempoEstimado: '...' }, ...]
     const tareasJson = response.data;
     let results = [];
-    for (const [key, value] of Object.entries(tareasJson)) {
-      if (key.startsWith('task_')) {
-        // Insert each task into the DB (example: as new tareas for the user)
-        // You can customize fields as needed
-        const sql = `INSERT INTO tarea (descripcion, titulo, usuario) VALUES (?, ?, ?)`;
-        try {
-          const insertResult = await query(sql, [value, value, req.session.user?.id || null]);
-          results.push({ tarea: value, insertId: insertResult.insertId });
-        } catch (err) {
-          results.push({ tarea: value, error: err.message });
-        }
+    // If tareasJson is an object, convert to array
+    let tareasArray = Array.isArray(tareasJson) ? tareasJson : Object.values(tareasJson);
+    for (const tareaObj of tareasArray) {
+      // Support both { tarea, tiempoEstimado } and legacy string value
+      let descripcion, titulo, tiempoEstimado;
+      if (typeof tareaObj === 'object' && tareaObj.tarea && tareaObj.tiempoEstimado) {
+        descripcion = tareaObj.tarea;
+        titulo = tareaObj.tarea;
+        tiempoEstimado = tareaObj.tiempoEstimado;
+      } else {
+        descripcion = tareaObj;
+        titulo = tareaObj;
+        tiempoEstimado = null;
+      }
+      // Insert each task into the DB with time estimation
+      const sql = `INSERT INTO tarea (descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?)`;
+      try {
+        const insertResult = await query(sql, [descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);
+        results.push({ tarea: descripcion, tiempoEstimado, insertId: insertResult.insertId });
+      } catch (err) {
+        results.push({ tarea: descripcion, tiempoEstimado, error: err.message });
       }
     }
     res.json({ tareasProcesadas: results });
