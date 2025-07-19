@@ -306,7 +306,11 @@ app.post('/tareas/ia/:id', async (req, res) => {
     );
 
     // Expect response in format: [{ tarea: '...', tiempoEstimado: '...' }, ...]
+    try{
     let tareasJsonStr = jsonrepair(response.data).replace(/\n/g, ""); //when does jsonrepair fail?
+    }catch (err){
+        console.error(err) // in case json is corrupted and unrecoverable by jsonrepair
+    }
     tareasJsonStr = JSON.stringify(tareasJsonStr);
     const tareasJson = JSON.parse(tareasJsonStr);
 
