@@ -1,0 +1,972 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Gestión de Tareas y Usuarios",
+    "version": "1.0.0",
+    "description": "API para la gestión de usuarios y tareas, con integración de Google Calendar e IA."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor de desarrollo local"
+    }
+  ],
+  "paths": {
+    "/auth": {
+      "get": {
+        "summary": "Iniciar el flujo de autenticación de Google OAuth2",
+        "description": "Redirige al usuario a la página de autenticación de Google para obtener permisos de Google Calendar.",
+        "responses": {
+          "302": {
+            "description": "Redirección a la URL de autenticación de Google."
+          }
+        }
+      }
+    },
+    "/oauth2callback": {
+      "get": {
+        "summary": "Callback para la autenticación de Google OAuth2",
+        "description": "Maneja la respuesta de Google OAuth2, intercambiando el código por tokens de acceso y refresco.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "description": "Código de autorización recibido de Google.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tokens de acceso y refresco obtenidos exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string",
+                      "description": "Token de acceso para la API de Google."
+                    },
+                    "refresh_token": {
+                      "type": "string",
+                      "description": "Token de refresco para obtener nuevos tokens de acceso."
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "token_type": {
+                      "type": "string"
+                    },
+                    "expiry_date": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No se recibió el código de autorización.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error al intercambiar el código por tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/usuarios": {
+      "get": {
+        "summary": "Obtener todos los usuarios",
+        "description": "Recupera una lista de todos los usuarios registrados en el sistema.",
+        "responses": {
+          "200": {
+            "description": "Lista de usuarios.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Usuario"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear un nuevo usuario",
+        "description": "Registra un nuevo usuario con email y contraseña. La contraseña se hashea antes de guardarse.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email del usuario."
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "Contraseña del usuario."
+                  }
+                },
+                "example": {
+                  "email": "nuevo@ejemplo.com",
+                  "password": "password123"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario creado exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pk": {
+                      "type": "integer",
+                      "description": "ID único del usuario."
+                    },
+                    "email": {
+                      "type": "string",
+                      "description": "Email del usuario."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Email y contraseña son requeridos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error al hashear la contraseña o al guardar en la base de datos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/usuarios/{id}": {
+      "get": {
+        "summary": "Obtener usuario por ID",
+        "description": "Recupera los detalles de un usuario específico por su ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID del usuario a recuperar.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del usuario.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usuario"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Usuario no encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "summary": "Iniciar sesión de usuario",
+        "description": "Autentica a un usuario con su email y contraseña, estableciendo una sesión.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email del usuario."
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "Contraseña del usuario."
+                  }
+                },
+                "example": {
+                  "email": "test@example.com",
+                  "password": "password123"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inicio de sesión exitoso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mensaje": {
+                      "type": "string",
+                      "example": "Inicio de sesión exitoso"
+                    },
+                    "usuario": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "email": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Email y contraseña requeridos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Usuario no encontrado o contraseña incorrecta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error al verificar contraseña o del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/logout": {
+      "post": {
+        "summary": "Cerrar sesión de usuario",
+        "description": "Destruye la sesión del usuario actual.",
+        "responses": {
+          "200": {
+            "description": "Sesión cerrada exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mensaje": {
+                      "type": "string",
+                      "example": "Sesión cerrada"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tareas": {
+      "get": {
+        "summary": "Obtener todas las tareas",
+        "description": "Recupera una lista de todas las tareas registradas en el sistema. Requiere autenticación.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de tareas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Tarea"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado. Inicia sesión primero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear una nueva tarea",
+        "description": "Registra una nueva tarea en el sistema y, opcionalmente, crea un evento en Google Calendar. Requiere autenticación.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TareaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tarea creada exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pk": {
+                      "type": "integer",
+                      "description": "ID único de la tarea."
+                    },
+                    "fecha_inicio": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "fecha_fin": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "descripcion": {
+                      "type": "string"
+                    },
+                    "prioridad": {
+                      "type": "string"
+                    },
+                    "titulo": {
+                      "type": "string"
+                    },
+                    "usuario": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado. Inicia sesión primero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error al crear la tarea o el evento en Google Calendar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tareas/{id}": {
+      "get": {
+        "summary": "Obtener tarea por ID",
+        "description": "Recupera los detalles de una tarea específica por su ID. Requiere autenticación.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID de la tarea a recuperar.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles de la tarea.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tarea"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado. Inicia sesión primero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarea no encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualizar una tarea",
+        "description": "Actualiza los detalles de una tarea existente por su ID. Requiere autenticación.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID de la tarea a actualizar.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TareaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tarea actualizada exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mensaje": {
+                      "type": "string",
+                      "example": "Tarea actualizada"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado. Inicia sesión primero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarea no encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar una tarea",
+        "description": "Elimina una tarea existente por su ID. Requiere autenticación.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID de la tarea a eliminar.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tarea eliminada exitosamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mensaje": {
+                      "type": "string",
+                      "example": "Tarea eliminada"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado. Inicia sesión primero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarea no encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tareas/ia/{id}": {
+      "post": {
+        "summary": "Obtener respuesta de IA basada en la descripción de una tarea",
+        "description": "Envía la descripción de una tarea específica a un modelo de IA (Gemini) y recupera una respuesta. Requiere autenticación.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID de la tarea cuya descripción se usará para la IA.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta de la IA.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "respuesta": {
+                      "type": "string",
+                      "description": "Texto generado por la IA."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado. Inicia sesión primero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarea no encontrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error al procesar la solicitud con la IA.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ia": {
+      "post": {
+        "summary": "Obtener respuesta de IA con texto libre",
+        "description": "Envía un prompt de texto libre a un modelo de IA (Gemini) y recupera una respuesta.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "Texto de entrada para la IA."
+                  }
+                },
+                "example": {
+                  "prompt": "¿Cuál es la capital de Francia?"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta de la IA.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "respuesta": {
+                      "type": "string",
+                      "description": "Texto generado por la IA."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No se pudo conectar con Gemini o error al procesar la solicitud.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Usuario": {
+        "type": "object",
+        "properties": {
+          "pk": {
+            "type": "integer",
+            "description": "ID único del usuario."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email del usuario."
+          },
+          "password_hash": {
+            "type": "string",
+            "description": "Hash de la contraseña del usuario."
+          },
+          "salt": {
+            "type": "string",
+            "description": "Salt utilizado para el hasheo de la contraseña."
+          }
+        },
+        "example": {
+          "pk": 1,
+          "email": "usuario@ejemplo.com",
+          "password_hash": "hashedpassword123",
+          "salt": "somesalt"
+        }
+      },
+      "Tarea": {
+        "type": "object",
+        "properties": {
+          "pk": {
+            "type": "integer",
+            "description": "ID único de la tarea."
+          },
+          "fecha_inicio": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de inicio de la tarea."
+          },
+          "fecha_fin": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de fin de la tarea."
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción detallada de la tarea."
+          },
+          "prioridad": {
+            "type": "string",
+            "description": "Nivel de prioridad de la tarea (e.g., 'alta', 'media', 'baja')."
+          },
+          "titulo": {
+            "type": "string",
+            "description": "Título de la tarea."
+          },
+          "usuario": {
+            "type": "integer",
+            "description": "ID del usuario al que pertenece la tarea."
+          }
+        },
+        "example": {
+          "pk": 101,
+          "fecha_inicio": "2025-07-15T09:00:00Z",
+          "fecha_fin": "2025-07-15T10:00:00Z",
+          "descripcion": "Reunión de equipo para planificar el proyecto X.",
+          "prioridad": "alta",
+          "titulo": "Reunión de Planificación",
+          "usuario": 1
+        }
+      },
+      "TareaInput": {
+        "type": "object",
+        "required": [
+          "fecha_inicio",
+          "fecha_fin",
+          "descripcion",
+          "prioridad",
+          "titulo",
+          "usuario"
+        ],
+        "properties": {
+          "fecha_inicio": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de inicio de la tarea (ISO 8601)."
+          },
+          "fecha_fin": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora de fin de la tarea (ISO 8601)."
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción detallada de la tarea."
+          },
+          "prioridad": {
+            "type": "string",
+            "description": "Nivel de prioridad de la tarea (e.g., 'alta', 'media', 'baja')."
+          },
+          "titulo": {
+            "type": "string",
+            "description": "Título de la tarea."
+          },
+          "usuario": {
+            "type": "integer",
+            "description": "ID del usuario al que pertenece la tarea."
+          }
+        },
+        "example": {
+          "fecha_inicio": "2025-07-16T09:00:00Z",
+          "fecha_fin": "2025-07-16T10:00:00Z",
+          "descripcion": "Preparar presentación para el cliente A.",
+          "prioridad": "media",
+          "titulo": "Preparar Presentación",
+          "usuario": 1
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Mensaje de error."
+          }
+        },
+        "example": {
+          "error": "Mensaje de error descriptivo"
+        }
+      }
+    },
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "connect.sid",
+        "description": "Autenticación basada en sesión a través de cookies."
+      }
+    }
+  }
+}

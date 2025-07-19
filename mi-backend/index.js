@@ -1,15 +1,23 @@
-require('dotenv').config();
-const axios = require('axios');
-const express = require('express');
-const util = require('util');
-const conexion = require('./db'); // Importa la conexión
+
+//require('dotenv').config();
+import axios from 'axios';
+import express from 'express';
+import session from 'express-session';
+import { jsonrepair } from 'jsonrepair';
+import hash from 'pbkdf2-password';
+import util from 'util';
+import conexion from './db.js'; // Importa la conexión
 const app = express();
 const port = 3000;
-const hash = require('pbkdf2-password')();
-const session = require('express-session');
 
+//const express = require('express');
+import swaggerUi from 'swagger-ui-express';
+import swaggerDocument from './swagger.json' with { type: "json" };
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(express.json());
+
 
 //middleware de sesión
 app.use(session({
@@ -26,20 +34,67 @@ function requireLogin(req, res, next) {
   next();
 }
 
+
 /*¿Cómo lo usas?
-Una vez definido, lo puedes aplicar a cualquier ruta que quieras proteger. 
-Solo lo agregas como parámetro en esa ruta. Ejemplo: 
+Una vez definido, lo puedes aplicar a cualquier ruta que quieras proteger.
+Solo lo agregas como parámetro en esa ruta. Ejemplo:
 app.get('/tareas', requireLogin, async (req, res) => {
   // Esta ruta SOLO se puede acceder si estás logueado
 });
 */
 
-
 // Promisificar la query para usar async/await
 const query = util.promisify(conexion.query).bind(conexion);
 
-// RUTAS PARA USUARIOS
+// Configuración de OAuth2 para Google Calendar
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,     // e.g. 1035001014876-r71f38f2nacc4rotd0bjk2k015eusffg.apps.googleusercontent.com
+  process.env.GOOGLE_CLIENT_SECRET, // e.g. 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
+  process.env.GOOGLE_REDIRECT_URI   // e.g. http://localhost:3000/oauth2callback
+); */
 
+// Rutas para iniciar OAuth y recibir callback
+
+app.get('/auth', (req, res) => {
+  const scopes = ['https://www.googleapis.com/auth/calendar.events'];
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline', // importante para obtener refresh token
+    scope: scopes,
+  });
+  res.redirect(url);
+});
+
+app.get('/oauth2callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.status(400).send('No se recibió el código de autorización');
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    // Aquí puedes guardar tokens.access_token y tokens.refresh_token en tu base de datos o archivo .env
+    // Para propósitos de prueba, los mostramos en pantalla
+    res.json(tokens);
+  } catch (error) {
+    console.error('Error intercambiando código por tokens:', error);
+    res.status(500).send('Error al intercambiar el código por tokens');
+  }
+});
+
+// Si ya tienes tokens guardados en .env, configúralos aquí para usar en requests
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* oauth2Client.setCredentials({
+  access_token: process.env.GOOGLE_ACCESS_TOKEN,
+  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+  scope: 'https://www.googleapis.com/auth/calendar.events',
+  token_type: 'Bearer',
+  expiry_date: true // o timestamp si lo tienes
+});
+ */
+// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
+/* const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+ */
+
+// RUTAS PARA USUARIOS
 // Obtener todos los usuarios
 app.get('/usuarios', async (req, res) => {
   try {
@@ -124,9 +179,10 @@ app.post('/logout', (req, res) => {
   });
 });
 
+
+
 // RUTAS PARA TAREAS
 
-// Obtener todas las tareas
 app.get('/tareas', async (req, res) => {
   try {
     const resultados = await query('SELECT * FROM tarea');
@@ -137,6 +193,7 @@ app.get('/tareas', async (req, res) => {
 });
 
 // Obtener tarea por ID
+
 app.get('/tareas/:id', async (req, res) => {
   const id = req.params.id;
   try {
@@ -148,13 +205,37 @@ app.get('/tareas/:id', async (req, res) => {
   }
 });
 
-// Crear tarea
 app.post('/tareas', async (req, res) => {
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
   const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario)
                VALUES (?, ?, ?, ?, ?, ?)`;
   try {
     const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario]);
+
+    // Crear evento en Google Calendar
+   /* const evento = {
+      summary: titulo,
+      description: descripcion,
+      start: {
+        dateTime: new Date(fecha_inicio).toISOString(),
+        timeZone: 'America/Panama',
+      },
+      end: {
+        dateTime: new Date(fecha_fin).toISOString(),
+        timeZone: 'America/Panama',
+      },
+    };
+
+    try {
+      await calendar.events.insert({
+        calendarId: 'primary',
+        resource: evento,
+      });
+    } catch (error) {
+      console.error('Error creando evento en Google Calendar:', error);
+      // Opcional: enviar warning sin interrumpir respuesta exitosa
+    }
+*/
     res.status(201).json({ pk: resultados.insertId, fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -188,7 +269,9 @@ app.delete('/tareas/:id', async (req, res) => {
   }
 });
 
-// RUTA IA CON TAREA POR ID (corregida)
+// RUTA IA CON TAREA POR ID
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
+// ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
 app.post('/tareas/ia/:id', async (req, res) => {
   const tareaId = req.params.id;
   try {
@@ -199,57 +282,65 @@ app.post('/tareas/ia/:id', async (req, res) => {
     const descripcion = resultados[0].descripcion;
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // Send header data and get JSON response with tasks
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://localhost:8000/secure-data`,
       {
-        contents: [
-          {
-            parts: [{ text: descripcion }]
-          }
-        ]
+        pdf_url: req.body.pdf_url || '', // If you want to send a PDF URL, otherwise remove
+        question: descripcion
       },
       {
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey // Send API key in header
+        }
       }
     );
 
-    const textoIA = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    res.json({ respuesta: textoIA });
-
+    // Expect response in format: { task_1: '...', task_2: '...', ... }
+    // add time estimation 
+    const tareasJson = response.data;
+    let results = [];
+    for (const [key, value] of Object.entries(tareasJson)) {
+      if (key.startsWith('task_')) {
+        // Insert each task into the DB (example: as new tareas for the user)
+        // You can customize fields as needed
+        const sql = `INSERT INTO tarea (descripcion, titulo, usuario) VALUES (?, ?, ?)`;
+        try {
+          const insertResult = await query(sql, [value, value, req.session.user?.id || null]);
+          results.push({ tarea: value, insertId: insertResult.insertId });
+        } catch (err) {
+          results.push({ tarea: value, error: err.message });
+        }
+      }
+    }
+    res.json({ tareasProcesadas: results });
   } catch (error) {
     console.error('Error en /tareas/ia/:id:', error.response?.data || error.message || error);
     res.status(500).json({ error: 'Error al procesar la solicitud' });
   }
 });
 
-// Ruta para probar IA con texto libre (ya existente)
-app.post('/ia', async (req, res) => {
-  const { prompt } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
+// hacer que guarde los datos temporalmente antes de modificar la base de datos
 
-  try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
 
-    const textoIA = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    res.json({ respuesta: textoIA });
 
-  } catch (error) {
-    console.error('Error al conectar con Gemini:', error.response?.data || error.message);
-    res.status(500).json({ error: 'No se pudo conectar con Gemini' });
-  }
+app.listen(port, () => {
+  console.log(`Servidor corriendo en http://localhost:${port}`);
 });
+
+try {
+  // The following is invalid JSON: is consists of JSON contents copied from
+  // a JavaScript code base, where the keys are missing double quotes,
+  // and strings are using single quotes:
+  const json = "{name: 'John'}"
+
+  const repaired = jsonrepair(json)
+
+  console.log(repaired) // '{"name": "John"}'
+} catch (err) {
+  console.error(err)
+}
 
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
