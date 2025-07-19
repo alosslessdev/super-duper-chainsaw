@@ -7,29 +7,30 @@ import { jsonrepair } from 'jsonrepair';
 import hash from 'pbkdf2-password';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
-const app = express();
-const port = 3000;
-
-//const express = require('express');
 import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from './swagger.json' with { type: "json" };
+const app = express(); //declaracion de aplicacion
+const port = 3000; //puerto de red
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+//const express = require('express');
 
-app.use(express.json());
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument)); //usar swagger para documentaciop
+
+app.use(express.json()); //???
 
 
-//middleware de sesión
-app.use(session({
-  secret: 'clave-super-secreta',
+//middleware de sesión? O es para guardar contraseñas?
+app.use(session({ //de express-session, guarda una id de sesion en el servidor, se usa para cookies, esto es para opciones de la sesion y hay un objeto json con opciones
+  secret: 'clave-super-secreta', //
   resave: false,
   saveUninitialized: false
 }));
 
-// 🔐 Middleware de protección
-function requireLogin(req, res, next) {
-  if (!req.session.user) {
-    return res.status(401).json({ error: 'No autorizado. Inicia sesión primero.' });
+// 🔐 Middleware de protección, fucnion para login
+function requireLogin(req, res, next) { // req es request, res es response, next es seguir al siguiente middleware, son de express, porque se llama next? 
+                                        // Que llama requirelogin? Nada
+  if (!req.session.user) {  
+    return res.status(401).json({ error: 'No autorizado. Inicia sesión primero.' }); //retirnar no autorizado en json
   }
   next();
 }
