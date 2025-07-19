@@ -306,10 +306,12 @@ app.post('/tareas/ia/:id', async (req, res) => {
     );
 
     // Expect response in format: [{ tarea: '...', tiempoEstimado: '...' }, ...]
-    const tareasJson = response.data;
+    let tareasJsonStr = JSON.stringify(response.data).replace(/\n/g, "");
+    const tareasJson = JSON.parse(tareasJsonStr);
+
     let results = [];
-    // If tareasJson is an object, convert to array
     let tareasArray = Array.isArray(tareasJson) ? tareasJson : Object.values(tareasJson);
+    
     for (const tareaObj of tareasArray) {
       // Support both { tarea, tiempoEstimado } and legacy string value
       let descripcion, titulo, tiempoEstimado;
