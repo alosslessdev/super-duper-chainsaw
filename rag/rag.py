@@ -27,10 +27,9 @@ if not os.environ.get("GOOGLE_API_KEY"):
 # has permissions for Speech-to-Text.
 
 os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_API_KEY"] = getpass.getpass("API key for LangSmith")
+os.environ["LANGSMITH_API_KEY"] = getpass.getpass("API key for LangSmith: ")
 
-API_KEY = getpass.getpass("Set API key:")
-API_KEY_NAME = "X-API-Key"
+API_KEY = getpass.getpass("Set API key: ")
 
 app = FastAPI()
 
@@ -86,33 +85,43 @@ def process_pdf_from_url(pdf_url: str):
 # A protected endpoint for LLM answer
 class PDFRequest(BaseModel):
     pdf_url: str
-    question: str = """Por favor extrae todos los pasos que debo hacer para completar lo que se 
-    plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista. Estima el tiempo necesario 
-    para cada tarea en dias. Escribe los 
-    resultados en formato JSON asi: {""tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
-    \"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\",
-    ***Continuar patrón 1 vez***} """
+
+# Default question prompt
+DEFAULT_QUESTION = (
+    "Por favor extrae todos los pasos que debo hacer para completar lo que se "
+    "plantea en este documento. Si hay una lista de puntos a hacer, muestra la lista. "
+    "Estima el tiempo necesario para cada tarea en dias. Escribe los resultados en formato JSON asi: "
+    "{\"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\", "
+    "\"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\", "
+    "***Continuar patrón 1 vez***} "
+)
 
 @app.post("/secure-data")
 async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
+
     text = process_pdf_from_url(data.pdf_url)
     docs = [Document(page_content=text)]
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     all_splits = text_splitter.split_documents(docs)
+
     vector_store = InMemoryVectorStore(embeddings)
     _ = vector_store.add_documents(documents=all_splits)
+
     def retrieve(state: State):
         retrieved_docs = vector_store.similarity_search(state["question"])
         return {"context": retrieved_docs}
+
     def generate(state: State):
         docs_content = "\n\n".join(doc.page_content for doc in state["context"])
         messages = prompt.invoke({"question": state["question"], "context": docs_content})
         response = llm.invoke(messages)
         return {"answer": response.content}
+
     graph_builder = StateGraph(State).add_sequence([retrieve, generate])
     graph_builder.add_edge(START, "retrieve")
     graph = graph_builder.compile()
-    response = graph.invoke({"question": data.question})
+
+    response = graph.invoke({"question": DEFAULT_QUESTION})
     return response["answer"]
 
 

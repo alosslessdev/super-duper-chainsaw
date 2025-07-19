@@ -116,7 +116,8 @@
                   "descripcion": { "type": "string" },
                   "prioridad": { "type": "string" },
                   "titulo": { "type": "string" },
-                  "usuario": { "type": "integer" }
+                  "usuario": { "type": "integer" },
+                  "tiempo_estimado": { "type": ["string", "null"], "description": "Tiempo estimado para la tarea (opcional, generado por IA)" }
                 }
               }
             }
@@ -166,7 +167,8 @@
                   "descripcion": { "type": "string" },
                   "prioridad": { "type": "string" },
                   "titulo": { "type": "string" },
-                  "usuario": { "type": "integer" }
+                  "usuario": { "type": "integer" },
+                  "tiempo_estimado": { "type": ["string", "null"], "description": "Tiempo estimado para la tarea (opcional, generado por IA)" }
                 }
               }
             }
@@ -217,7 +219,30 @@
           }
         },
         "responses": {
-          "200": { "description": "Tareas generadas por IA" }
+          "200": {
+            "description": "Tareas generadas por IA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tareasProcesadas": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tarea": { "type": "string" },
+                          "tiempoEstimado": { "type": ["string", "null"] },
+                          "insertId": { "type": "integer" },
+                          "error": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -9,8 +9,13 @@ import util from 'util';
 import conexion from './db.js'; // Importa la conexión
 import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from './swagger.json' with { type: "json" };
+import readlineSync from 'readline-sync';
+// Prompt for API key at startup
+const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEchoBack: true }) || '';
 const app = express(); //declaracion de aplicacion
 const port = 3000; //puerto de red
+
+
 
 //const express = require('express');
 
