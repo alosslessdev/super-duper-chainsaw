@@ -214,7 +214,7 @@ app.post('/tareas', async (req, res) => {
     const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario]);
 
     // Crear evento en Google Calendar
-    const evento = {
+   /* const evento = {
       summary: titulo,
       description: descripcion,
       start: {
@@ -236,7 +236,7 @@ app.post('/tareas', async (req, res) => {
       console.error('Error creando evento en Google Calendar:', error);
       // Opcional: enviar warning sin interrumpir respuesta exitosa
     }
-
+*/
     res.status(201).json({ pk: resultados.insertId, fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -299,6 +299,7 @@ app.post('/tareas/ia/:id', async (req, res) => {
     );
 
     // Expect response in format: { task_1: '...', task_2: '...', ... }
+    // add time estimation 
     const tareasJson = response.data;
     let results = [];
     for (const [key, value] of Object.entries(tareasJson)) {
