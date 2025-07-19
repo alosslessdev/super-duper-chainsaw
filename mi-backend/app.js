@@ -7,43 +7,44 @@ import { jsonrepair } from 'jsonrepair';
 import hash from 'pbkdf2-password';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
-const app = express();
-const port = 3000;
-
-//const express = require('express');
 import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from './swagger.json' with { type: "json" };
+const app = express(); //declaracion de aplicacion
+const port = 3000; //puerto de red
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+//const express = require('express');
 
-app.use(express.json());
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument)); //usar swagger para documentaciop
+
+app.use(express.json()); //???
 
 
-//middleware de sesión
-app.use(session({
-  secret: 'clave-super-secreta',
-  resave: false,
-  saveUninitialized: false
+//middleware de sesión? O es para guardar contraseñas?
+app.use(session({ //de express-session, guarda una id de sesion en el servidor, se usa para cookies, esto es para opciones de la sesion y hay un objeto json con opciones
+  secret: 'clave-super-secreta', //secreto usaod para formar la cookie de id de sesion
+  resave: false, // se usa con almacenamiento de sesionse dependiendo de si usa el metodo touch, no se usa. 
+  saveUninitialized: false // no guardar sesiones que no se han inicializado, para sesiones de login, pedir permiso de cookies, reduce espacio de almacenamiento
 }));
 
-// 🔐 Middleware de protección
-function requireLogin(req, res, next) {
-  if (!req.session.user) {
-    return res.status(401).json({ error: 'No autorizado. Inicia sesión primero.' });
+// 🔐 Middleware de protección, fucnion para login requiere session arriba
+function requireLogin(req, res, next) { // req es request, res es response, next se pone para seguir al siguiente middleware, son de express, porque se llama next? 
+                                        // Que llama requirelogin? Nada
+  if (!req.session.user) {  //si el request no tiene session de user, que establece req? Express session.
+    return res.status(401).json({ error: 'No autorizado. Inicia sesión primero.' }); //retirnar no autorizado en json
   }
-  next();
+  next(); //seguir al siguente middleware
 }
 
 
 /*¿Cómo lo usas?
 Una vez definido, lo puedes aplicar a cualquier ruta que quieras proteger.
 Solo lo agregas como parámetro en esa ruta. Ejemplo:
-app.get('/tareas', requireLogin, async (req, res) => {
-  // Esta ruta SOLO se puede acceder si estás logueado
+app.get('/tareas', requireLogin, async (req, res) => {   
+  // Esta ruta SOLO se puede acceder si estás logueado usando requirelogin arriba
 });
 */
 
-// Promisificar la query para usar async/await
+// Promisificar la query a la conexion de base de datos para usar async/await
 const query = util.promisify(conexion.query).bind(conexion);
 
 // Configuración de OAuth2 para Google Calendar
@@ -55,8 +56,9 @@ const query = util.promisify(conexion.query).bind(conexion);
 ); */
 
 // Rutas para iniciar OAuth y recibir callback
+//seguir documentacion de google de autenticacion (oauth)
 
-app.get('/auth', (req, res) => {
+/* app.get('/auth', (req, res) => {
   const scopes = ['https://www.googleapis.com/auth/calendar.events'];
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline', // importante para obtener refresh token
@@ -79,7 +81,7 @@ app.get('/oauth2callback', async (req, res) => {
     res.status(500).send('Error al intercambiar el código por tokens');
   }
 });
-
+ */
 // Si ya tienes tokens guardados en .env, configúralos aquí para usar en requests
 // Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
 /* oauth2Client.setCredentials({
@@ -96,9 +98,9 @@ app.get('/oauth2callback', async (req, res) => {
 
 // RUTAS PARA USUARIOS
 // Obtener todos los usuarios
-app.get('/usuarios', async (req, res) => {
+app.get('/usuarios', async (req, res) => { //async de express 
   try {
-    const resultados = await query('SELECT * FROM usuario');
+    const resultados = await query('SELECT * FROM usuario'); //de es7 javascript await, query de funcion arriba
     res.json(resultados);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -107,7 +109,8 @@ app.get('/usuarios', async (req, res) => {
 
 // Obtener usuario por ID
 app.get('/usuarios/:id', async (req, res) => {
-  const id = req.params.id;
+  const id = req.params.id; //request parameters are? id is related to this route aka url and req.params.id represents 
+                            // whatever the frontend sends replacing the :id field aka parameter
   try {
     const resultados = await query('SELECT * FROM usuario WHERE pk = ?', [id]);
     if (resultados.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -126,7 +129,10 @@ app.post('/usuarios', (req, res) => {
     return res.status(400).json({ error: 'Email y contraseña son requeridos' });
   }
 
-  hash({ password }, (err, pass, salt, hashVal) => {
+  hash({ password }, (err, pass, salt, hashVal) => {  //hash de libreria externa, this syntax is 
+                                                      // a lambda func and password needs to be an object
+                                                      // err, pass, salt, hashval are just for library
+                                                      // lambda used because of library
     if (err) return res.status(500).json({ error: 'Error al hashear la contraseña' });
 
     const sql = 'INSERT INTO usuario (email, password_hash, salt) VALUES (?, ?, ?)';
@@ -136,8 +142,6 @@ app.post('/usuarios', (req, res) => {
     });
   });
 });
-
-
 
 // Ruta para iniciar sesión
 app.post('/login', async (req, res) => {
@@ -280,7 +284,6 @@ app.post('/tareas/ia/:id', async (req, res) => {
       return res.status(404).json({ error: 'Tarea no encontrada' });
     }
     const descripcion = resultados[0].descripcion;
-    const apiKey = process.env.GEMINI_API_KEY;
 
     // Send header data and get JSON response with tasks
     const response = await axios.post(
