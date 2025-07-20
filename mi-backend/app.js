@@ -23,6 +23,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument)); //usar 
 
 app.use(express.json()); //???
 
+const hasher = hash();
 
 //middleware de sesión? O es para guardar contraseñas?
 app.use(session({ //de express-session, guarda una id de sesion en el servidor, se usa para cookies, esto es para opciones de la sesion y hay un objeto json con opciones
@@ -110,13 +111,13 @@ app.post('/usuarios', (req, res) => {
     return res.status(400).json({ error: 'Email y contraseña son requeridos' });
   }
 
-  hash({ password }, (err, pass, salt, hashVal) => {  //hash de libreria externa, this syntax is 
+  hasher({ password }, (err, pass, salt, hashVal) => {  //hash de libreria externa, this syntax is 
                                                       // a lambda func and password needs to be an object
                                                       // err, pass, salt, hashval are just for library
                                                       // lambda used because of library
     if (err) return res.status(500).json({ error: 'Error al hashear la contraseña' });
 
-    const sql = 'INSERT INTO usuario (email, password_hash, salt) VALUES (?, ?, ?)';
+    const sql = 'INSERT INTO usuario (email, password, salt) VALUES (?, ?, ?)';
     conexion.query(sql, [email, hashVal, salt], (error, resultados) => {
       if (error) return res.status(500).json({ error: error.message });
       res.status(201).json({ pk: resultados.insertId, email });
@@ -127,27 +128,38 @@ app.post('/usuarios', (req, res) => {
 // Ruta para iniciar sesión
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log("req.body done");
 
   if (!email || !password) {
+      console.log("no pass done");
+
     return res.status(400).json({ error: 'Email y contraseña requeridos' });
   }
-
+  
   try {
+      console.log("enter user search done");
+
     const resultados = await query('SELECT * FROM usuario WHERE email = ?', [email]);
+      console.log("user search done");
+
     if (resultados.length === 0) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
     }
 
     const user = resultados[0];
+  console.log("entering hash");
 
-    hash({ password, salt: user.salt }, (err, pass, salt, hashVal) => {
+    hasher({ password, salt: user.salt }, (err, pass, salt, hashVal) => {
+        console.log("ahshing");
+
       if (err) return res.status(500).json({ error: 'Error al verificar contraseña' });
 
-      if (hashVal === user.password_hash) {
+      if (hashVal === user.password) {
         req.session.user = {
           id: user.pk,
           email: user.email
         };
+       
         res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user });
       } else {
         res.status(401).json({ error: 'Contraseña incorrecta' });
@@ -158,8 +170,10 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.post('/logout', (req, res) => {
+// Require cookie for logout
+app.post('/logout', requireLogin, (req, res) => {
   req.session.destroy(() => {
+    res.clearCookie('connect.sid');
     res.json({ mensaje: 'Sesión cerrada' });
   });
 });
@@ -168,7 +182,7 @@ app.post('/logout', (req, res) => {
 
 // RUTAS PARA TAREAS
 
-app.get('/tareas/:usuario', async (req, res) => {
+app.get('/tareas/:usuario', requireLogin, async (req, res) => {
   const usuario = req.params.usuario;
   try {
     const resultados = await query('SELECT * FROM tarea WHERE usuario = ?', [usuario]);
@@ -180,7 +194,7 @@ app.get('/tareas/:usuario', async (req, res) => {
 
 // Obtener tarea por ID
 
-app.get('/tareas/:id', async (req, res) => {
+app.get('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
   try {
     const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
@@ -191,7 +205,7 @@ app.get('/tareas/:id', async (req, res) => {
   }
 });
 
-app.post('/tareas', async (req, res) => {
+app.post('/tareas', requireLogin, async (req, res) => {
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
   const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario)
                VALUES (?, ?, ?, ?, ?, ?)`;
@@ -229,7 +243,7 @@ app.post('/tareas', async (req, res) => {
 });
 
 // Actualizar tarea
-app.put('/tareas/:id', async (req, res) => {
+app.put('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
   const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?
@@ -244,7 +258,7 @@ app.put('/tareas/:id', async (req, res) => {
 });
 
 // Eliminar tarea
-app.delete('/tareas/:id', async (req, res) => {
+app.delete('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
   try {
     const resultados = await query('DELETE FROM tarea WHERE pk = ?', [id]);
@@ -258,7 +272,7 @@ app.delete('/tareas/:id', async (req, res) => {
 // RUTA IA CON TAREA POR ID
 // hacer que guarde los datos temporalmente antes de modificar la base de datos
 // ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
-app.post('/tareas/ia/', async (req, res) => {
+app.post('/tareas/ia/', requireLogin, async (req, res) => {
   try {
     /* const resultados = await query('SELECT descripcion FROM tarea WHERE pk = ?', [tareaId]);
     if (resultados.length === 0) {
