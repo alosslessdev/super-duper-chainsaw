@@ -42,4 +42,4 @@ node_modules
 venv
 expo-env.d.ts
 package-lock.json
-rag/__pycache__/rag.cpython-312.pyc
+__pycache__
