@@ -350,7 +350,7 @@
         }
       }
     },
-    "/tareas/{usuario}": {
+    "/tareas/de/{usuario}": {
       "get": {
         "tags": [
           "Tasks"
@@ -409,7 +409,7 @@
         }
       }
     },
-    "/tareas/{id}": {
+    "/tareas/por/{id}": {
       "get": {
         "tags": [
           "Tasks"
