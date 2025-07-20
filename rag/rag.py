@@ -85,11 +85,10 @@ def process_pdf_from_url(pdf_url: str):
 # A protected endpoint for LLM answer
 class PDFRequest(BaseModel):
     pdf_url: str
+    question1: str = """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""
 
-# Default question prompt
+
 DEFAULT_QUESTION = (
-    "Por favor extrae todos los pasos que debo hacer para completar lo que se "
-    "plantea en este documento. Si hay una lista de puntos a hacer, muestra la lista. "
     "Estima el tiempo necesario para cada tarea en dias. Escribe los resultados en formato JSON asi: "
     "{\"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\", "
     "\"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\", "
@@ -121,7 +120,9 @@ async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
     graph_builder.add_edge(START, "retrieve")
     graph = graph_builder.compile()
 
-    response = graph.invoke({"question": DEFAULT_QUESTION})
+    combined_question = data.question1 + " " + DEFAULT_QUESTION
+    response = graph.invoke({"question": combined_question})
+
     return response["answer"]
 
 
