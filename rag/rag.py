@@ -15,6 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional
 from pydantic import BaseModel
 
+app = FastAPI()
 
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
@@ -31,7 +32,6 @@ os.environ["LANGSMITH_API_KEY"] = getpass.getpass("API key for LangSmith: ")
 
 API_KEY = getpass.getpass("Set API key: ")
 
-app = FastAPI()
 
 def get_api_key(x_api_key: Optional[str] = Header(None)):
     if x_api_key != API_KEY:
