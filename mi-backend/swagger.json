@@ -350,7 +350,7 @@
         }
       }
     },
-    "/tareas/{usuario}": {
+    "/tareas/de/{usuario}": {
       "get": {
         "tags": [
           "Tasks"
@@ -409,7 +409,7 @@
         }
       }
     },
-    "/tareas/{id}": {
+    "/tareas/por/{id}": {
       "get": {
         "tags": [
           "Tasks"
@@ -708,6 +708,11 @@
         ],
         "summary": "Generate and save tasks using AI",
         "description": "Sends a question and/or PDF URL to an external AI service to generate tasks, then saves them to the database.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {

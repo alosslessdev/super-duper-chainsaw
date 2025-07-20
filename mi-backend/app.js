@@ -15,6 +15,12 @@ const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEc
 const app = express(); //declaracion de aplicacion
 const port = 3000; //puerto de red
 
+import cors from 'cors';
+app.use(cors({
+  origin: 'http://localhost:3000', // or wherever Swagger UI is served
+  credentials: true
+}));
+
 
 
 //const express = require('express');
@@ -103,7 +109,6 @@ app.get('/oauth2callback', async (req, res) => {
  */
 
 // Crear usuario / agregado lo de hash
-
 app.post('/usuarios', (req, res) => {
   const { email, password } = req.body;
 
@@ -135,7 +140,6 @@ app.post('/login', async (req, res) => {
 
     return res.status(400).json({ error: 'Email y contraseña requeridos' });
   }
-  
   try {
       console.log("enter user search done");
 
@@ -159,8 +163,11 @@ app.post('/login', async (req, res) => {
           id: user.pk,
           email: user.email
         };
-       
-        res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user });
+        req.session.save(function (err) {
+          if (err) return res.status(500).json({ error: 'Error al guardar la sesión' });
+          // Only send one response after session is saved
+          res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user });
+        });
       } else {
         res.status(401).json({ error: 'Contraseña incorrecta' });
       }
@@ -182,7 +189,7 @@ app.post('/logout', requireLogin, (req, res) => {
 
 // RUTAS PARA TAREAS
 
-app.get('/tareas/:usuario', requireLogin, async (req, res) => {
+app.get('/tareas/de/:usuario', requireLogin, async (req, res) => {
   const usuario = req.params.usuario;
   try {
     const resultados = await query('SELECT * FROM tarea WHERE usuario = ?', [usuario]);
@@ -194,7 +201,7 @@ app.get('/tareas/:usuario', requireLogin, async (req, res) => {
 
 // Obtener tarea por ID
 
-app.get('/tareas/:id', requireLogin, async (req, res) => {
+app.get('/tareas/por/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
   try {
     const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
@@ -282,7 +289,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
     // Send header data and get JSON response with tasks
     const response = await axios.post(
-      `https://localhost:8000/secure-data`,
+      `http://localhost:8000/secure-data`,
       {
         pdf_url: req.body.pdf_url || '', // If you want to send a PDF URL, otherwise remove
         question1: req.body.question // para hablar
