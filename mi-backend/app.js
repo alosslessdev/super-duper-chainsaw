@@ -271,7 +271,7 @@ app.post('/tareas/ia/', async (req, res) => {
       `https://localhost:8000/secure-data`,
       {
         pdf_url: req.body.pdf_url || '', // If you want to send a PDF URL, otherwise remove
-        question1: req.body.question
+        question1: req.body.question // para hablar
       },
       {
         headers: {
