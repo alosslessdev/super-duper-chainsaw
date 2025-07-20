@@ -13,14 +13,6 @@
   ],
   "paths": {
     "/usuarios": {
-      "get": {
-        "summary": "Obtener todos los usuarios",
-        "responses": {
-          "200": {
-            "description": "Lista de usuarios"
-          }
-        }
-      },
       "post": {
         "summary": "Crear un nuevo usuario",
         "requestBody": {
@@ -42,23 +34,6 @@
           "201": {
             "description": "Usuario creado"
           }
-        }
-      }
-    },
-    "/usuarios/{id}": {
-      "get": {
-        "summary": "Obtener usuario por ID",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "integer" }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Usuario encontrado" },
-          "404": { "description": "Usuario no encontrado" }
         }
       }
     },

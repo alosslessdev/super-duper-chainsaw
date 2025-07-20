@@ -39,6 +39,6 @@ yarn-error.*
 # Android Profiling
 *.hprof
 node_modules
-.venv/
+venv
 expo-env.d.ts
 package-lock.json
