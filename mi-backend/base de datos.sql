@@ -19,7 +19,7 @@ CREATE TABLE tarea (
   FOREIGN KEY (usuario) REFERENCES usuario(pk)
 );
 
---pruebas
+-- pruebas
 INSERT INTO usuario (email) VALUES
 ('alice.smith@example.com'),
 ('bob.johnson@example.com'),

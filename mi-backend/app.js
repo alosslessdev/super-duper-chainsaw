@@ -101,30 +101,6 @@ app.get('/oauth2callback', async (req, res) => {
 /* const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
  */
 
-// RUTAS PARA USUARIOS
-// Obtener todos los usuarios
-app.get('/usuarios', async (req, res) => { //async de express 
-  try {
-    const resultados = await query('SELECT * FROM usuario'); //de es7 javascript await, query de funcion arriba
-    res.json(resultados);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Obtener usuario por ID
-app.get('/usuarios/:id', async (req, res) => {
-  const id = req.params.id; //request parameters are? id is related to this route aka url and req.params.id represents 
-                            // whatever the frontend sends replacing the :id field aka parameter
-  try {
-    const resultados = await query('SELECT * FROM usuario WHERE pk = ?', [id]);
-    if (resultados.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
-    res.json(resultados[0]);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Crear usuario / agregado lo de hash
 
 app.post('/usuarios', (req, res) => {
@@ -192,9 +168,10 @@ app.post('/logout', (req, res) => {
 
 // RUTAS PARA TAREAS
 
-app.get('/tareas', async (req, res) => {
+app.get('/tareas/:usuario', async (req, res) => {
+  const usuario = req.params.usuario;
   try {
-    const resultados = await query('SELECT * FROM tarea');
+    const resultados = await query('SELECT * FROM tarea WHERE usuario = ?', [usuario]);
     res.json(resultados);
   } catch (error) {
     res.status(500).json({ error: error.message });
