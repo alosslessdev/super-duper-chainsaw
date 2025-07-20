@@ -5,11 +5,11 @@ import express from 'express';
 import session from 'express-session';
 import { jsonrepair } from 'jsonrepair';
 import hash from 'pbkdf2-password';
+import readlineSync from 'readline-sync';
+import swaggerUi from 'swagger-ui-express';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
-import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from './swagger.json' with { type: "json" };
-import readlineSync from 'readline-sync';
 // Prompt for API key at startup
 const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEchoBack: true }) || '';
 const app = express(); //declaracion de aplicacion
@@ -258,21 +258,20 @@ app.delete('/tareas/:id', async (req, res) => {
 // RUTA IA CON TAREA POR ID
 // hacer que guarde los datos temporalmente antes de modificar la base de datos
 // ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
-app.post('/tareas/ia/:id', async (req, res) => {
-  const tareaId = req.params.id;
+app.post('/tareas/ia/', async (req, res) => {
   try {
-    const resultados = await query('SELECT descripcion FROM tarea WHERE pk = ?', [tareaId]);
+    /* const resultados = await query('SELECT descripcion FROM tarea WHERE pk = ?', [tareaId]);
     if (resultados.length === 0) {
       return res.status(404).json({ error: 'Tarea no encontrada' });
     }
-    const descripcion = resultados[0].descripcion;
+    const descripcion = resultados[0].descripcion; */
 
     // Send header data and get JSON response with tasks
     const response = await axios.post(
       `https://localhost:8000/secure-data`,
       {
         pdf_url: req.body.pdf_url || '', // If you want to send a PDF URL, otherwise remove
-        question: descripcion
+        question1: req.body.question
       },
       {
         headers: {
@@ -282,31 +281,44 @@ app.post('/tareas/ia/:id', async (req, res) => {
       }
     );
 
-    // Expect response in format: [{ tarea: '...', tiempoEstimado: '...' }, ...]
-    try{
-    let tareasJsonStr = jsonrepair(response.data).replace(/\n/g, ""); //when does jsonrepair fail?
-    }catch (err){
-        console.error(err) // in case json is corrupted and unrecoverable by jsonrepair
+    let tareasJsonStr;
+    // Expect response in format: { "tarea_1": "...", "tiempoEstimado_1": "...", ... }
+    try {
+      let responseString = response.data.replace(/\n/g, "");
+      responseString = responseString.replace(/\\/g, "");
+      tareasJsonStr = jsonrepair(responseString);
+    } catch (err) {
+      console.error(err); // in case json is corrupted and unrecoverable by jsonrepair
+      return res.status(500).json({ error: 'Error al reparar el JSON de la IA' });
     }
-    tareasJsonStr = JSON.stringify(tareasJsonStr);
-    const tareasJson = JSON.parse(tareasJsonStr);
+
+    // tareasJsonStr is now a valid JSON string or object
+    let tareasJson;
+    if (typeof tareasJsonStr === 'string') {
+      tareasJson = JSON.parse(tareasJsonStr);
+    } else {
+      tareasJson = tareasJsonStr;
+    }
 
     let results = [];
-    let tareasArray = Array.isArray(tareasJson) ? tareasJson : Object.values(tareasJson);
-
-    for (const tareaObj of tareasArray) {
-      // Support both { tarea, tiempoEstimado } and legacy string value
-      let descripcion, titulo, tiempoEstimado;
-      if (typeof tareaObj === 'object' && tareaObj.tarea && tareaObj.tiempoEstimado) {
-        descripcion = tareaObj.tarea;
-        titulo = tareaObj.tarea;
-        tiempoEstimado = tareaObj.tiempoEstimado;
-      } else {
-        descripcion = tareaObj;
-        titulo = tareaObj;
-        tiempoEstimado = null;
+    // Iterate over keys and group tarea/tiempoEstimado pairs
+    // Example: { "tarea_1": "...", "tiempoEstimado_1": "...", "tarea_2": "...", ... }
+    const tareas = [];
+    for (const key of Object.keys(tareasJson)) {
+      if (key.toLowerCase().startsWith('tarea')) {
+        // Extract index from key, e.g., tarea_1 -> 1
+        const idx = key.split('_')[1] || '';
+        const descripcion = tareasJson[key];
+        const titulo = tareasJson[key];
+        // Find matching tiempoEstimado key
+        const tiempoKey = `tiempoEstimado_${idx}`;
+        const tiempoEstimado = tareasJson[tiempoKey] || null;
+        tareas.push({ descripcion, titulo, tiempoEstimado });
       }
-      // Insert each task into the DB with time estimation
+    }
+
+    for (const tareaObj of tareas) {
+      const { descripcion, titulo, tiempoEstimado } = tareaObj;
       const sql = `INSERT INTO tarea (descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?)`;
       try {
         const insertResult = await query(sql, [descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);

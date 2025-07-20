@@ -90,8 +90,8 @@ class PDFRequest(BaseModel):
 
 DEFAULT_QUESTION = (
     "Estima el tiempo necesario para cada tarea en dias. Escribe los resultados en formato JSON asi: "
-    "{\"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\", "
-    "\"tarea\": \"*poner tarea aqui*\", \"tiempoEstimado\": \"*tiempo estimado*\", "
+    "{\"tarea_1\": \"*poner tarea aqui*\", \"tiempoEstimado_1\": \"*tiempo estimado*\", "
+    "\"tarea_2\": \"*poner tarea aqui*\", \"tiempoEstimado_2\": \"*tiempo estimado*\", "
     "***Continuar patrón 1 vez***} "
 )
 

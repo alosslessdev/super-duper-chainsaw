@@ -172,14 +172,6 @@
     "/tareas/ia/{id}": {
       "post": {
         "summary": "Procesar IA para una tarea",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "integer" }
-          }
-        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -187,7 +179,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "pdf_url": { "type": "string" }
+                  "pdf_url": { "type": "string" },
+                  "question1": { "type": "string" }
+
                 }
               }
             }
