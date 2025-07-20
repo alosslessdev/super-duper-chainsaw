@@ -98,7 +98,12 @@ DEFAULT_QUESTION = (
 @app.post("/secure-data")
 async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
 
-    text = process_pdf_from_url(data.pdf_url)
+
+    if data.pdf_url: #para hablar
+        text = process_pdf_from_url(data.pdf_url)
+    else:
+        text = ""  # Use empty string if no PDF URL provided
+
     docs = [Document(page_content=text)]
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     all_splits = text_splitter.split_documents(docs)
