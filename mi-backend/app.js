@@ -341,9 +341,24 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
     for (const tareaObj of tareas) {
       const { descripcion, titulo, tiempoEstimado } = tareaObj;
-      const sql = `INSERT INTO tarea (descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?)`;
+      // Calcular fechaInicio y fechaFin según tiempoEstimado
+      let fechaInicio, fechaFin;
+      const hoy = new Date();
+      fechaInicio = hoy.toISOString().slice(0, 10); // formato YYYY-MM-DD
+      let dias = 1;
+      if (typeof tiempoEstimado === 'string') {
+        const match = tiempoEstimado.match(/(\d+)\s*d[ií]as?/i);
+        if (match) {
+          dias = parseInt(match[1], 10);
+        }
+      }
+      const fin = new Date(hoy);
+      fin.setDate(hoy.getDate() + dias);
+      fechaFin = fin.toISOString().slice(0, 10);
+
+      const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?, ?, ?)`;
       try {
-        const insertResult = await query(sql, [descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);
+        const insertResult = await query(sql, [fechaInicio, fechaFin, descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);
         results.push({ tarea: descripcion, tiempoEstimado, insertId: insertResult.insertId });
       } catch (err) {
         results.push({ tarea: descripcion, tiempoEstimado, error: err.message });
