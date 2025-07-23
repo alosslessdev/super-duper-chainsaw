@@ -14,11 +14,16 @@ from fastapi import FastAPI, Header, HTTPException, Depends, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional
 from pydantic import BaseModel
+from langchain_core.messages import HumanMessage, SystemMessage
+
 
 app = FastAPI()
 
+
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
+
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for Speech-to-Text
 # It's highly recommended to use a service account key file for production.
@@ -99,35 +104,45 @@ DEFAULT_QUESTION = (
 async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
 
 
-    if data.pdf_url: #para hablar
+    if data.pdf_url: #para documento
         text = process_pdf_from_url(data.pdf_url)
+
+        docs = [Document(page_content=text)]
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        all_splits = text_splitter.split_documents(docs)
+
+        vector_store = InMemoryVectorStore(embeddings)
+        _ = vector_store.add_documents(documents=all_splits)
+
+        def retrieve(state: State):
+            retrieved_docs = vector_store.similarity_search(state["question"])
+            return {"context": retrieved_docs}
+
+        def generate(state: State):
+            docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+            messages = prompt.invoke({"question": state["question"], "context": docs_content})
+            response = llm.invoke(messages)
+            return {"answer": response.content}
+
+        graph_builder = StateGraph(State).add_sequence([retrieve, generate])
+        graph_builder.add_edge(START, "retrieve")
+        graph = graph_builder.compile()
+
+        combined_question = data.question1 + " " + DEFAULT_QUESTION
+        response = graph.invoke({"question": combined_question})
+        return response["answer"]
+
     else:
-        text = ""  # Use empty string if no PDF URL provided
+        # para hablar
+        messages = [
+        SystemMessage(DEFAULT_QUESTION),
+        HumanMessage(PDFRequest.question1),
+        ]      
 
-    docs = [Document(page_content=text)]
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    all_splits = text_splitter.split_documents(docs)
+        result = llm.invoke(messages)
+        return result.content
 
-    vector_store = InMemoryVectorStore(embeddings)
-    _ = vector_store.add_documents(documents=all_splits)
 
-    def retrieve(state: State):
-        retrieved_docs = vector_store.similarity_search(state["question"])
-        return {"context": retrieved_docs}
 
-    def generate(state: State):
-        docs_content = "\n\n".join(doc.page_content for doc in state["context"])
-        messages = prompt.invoke({"question": state["question"], "context": docs_content})
-        response = llm.invoke(messages)
-        return {"answer": response.content}
-
-    graph_builder = StateGraph(State).add_sequence([retrieve, generate])
-    graph_builder.add_edge(START, "retrieve")
-    graph = graph_builder.compile()
-
-    combined_question = data.question1 + " " + DEFAULT_QUESTION
-    response = graph.invoke({"question": combined_question})
-
-    return response["answer"]
-
+    
 
