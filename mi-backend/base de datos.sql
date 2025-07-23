@@ -15,7 +15,7 @@ CREATE TABLE tarea (
   fecha_fin DATE,
   descripcion TEXT,
   prioridad VARCHAR(50),
-  titulo VARCHAR(100),
+  titulo TEXT,
   usuario INT,
   tiempo_estimado VARCHAR(50),
   FOREIGN KEY (usuario) REFERENCES usuario(pk)

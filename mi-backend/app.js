@@ -281,36 +281,37 @@ app.delete('/tareas/:id', requireLogin, async (req, res) => {
 // ver tambien como se sube el archivo lo mas probable es que sea en s3 y luego aqui se tome el link desde s3 y se pase al rag
 app.post('/tareas/ia/', requireLogin, async (req, res) => {
   try {
-    /* const resultados = await query('SELECT descripcion FROM tarea WHERE pk = ?', [tareaId]);
-    if (resultados.length === 0) {
-      return res.status(404).json({ error: 'Tarea no encontrada' });
-    }
-    const descripcion = resultados[0].descripcion; */
-
-    // Send header data and get JSON response with tasks
-    const response = await axios.post(
-      `http://localhost:8000/secure-data`,
-      {
-        pdf_url: req.body.pdf_url || '', // If you want to send a PDF URL, otherwise remove
-        question1: req.body.question // para hablar
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey // Send API key in header
+    let response, tareasJsonStr;
+    let attempt = 0;
+    let jsonRepairSuccess = false;
+    let lastError;
+    while (attempt < 2 && !jsonRepairSuccess) {
+      try {
+        response = await axios.post(
+          `http://localhost:8000/secure-data`,
+          {
+            pdf_url: req.body.pdf_url || '',
+            question1: req.body.question
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': apiKey
+            }
+          }
+        );
+        let responseString = response.data.replace(/\n/g, "");
+        responseString = responseString.replace(/\\/g, "");
+        tareasJsonStr = jsonrepair(responseString);
+        jsonRepairSuccess = true;
+      } catch (err) {
+        lastError = err;
+        attempt++;
+        if (attempt >= 2) {
+          console.error(err);
+          return res.status(500).json({ error: 'Error al reparar el JSON de la IA tras 2 intentos' });
         }
       }
-    );
-
-    let tareasJsonStr;
-    // Expect response in format: { "tarea_1": "...", "tiempoEstimado_1": "...", ... }
-    try {
-      let responseString = response.data.replace(/\n/g, "");
-      responseString = responseString.replace(/\\/g, "");
-      tareasJsonStr = jsonrepair(responseString);
-    } catch (err) {
-      console.error(err); // in case json is corrupted and unrecoverable by jsonrepair
-      return res.status(500).json({ error: 'Error al reparar el JSON de la IA' });
     }
 
     // tareasJsonStr is now a valid JSON string or object
@@ -340,13 +341,32 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
     for (const tareaObj of tareas) {
       const { descripcion, titulo, tiempoEstimado } = tareaObj;
-      const sql = `INSERT INTO tarea (descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?)`;
+      // Calcular fechaInicio y fechaFin según tiempoEstimado
+      let fechaInicio, fechaFin;
+      const hoy = new Date();
+      fechaInicio = hoy.toISOString().slice(0, 10); // formato YYYY-MM-DD
+      let dias = 1;
+      if (typeof tiempoEstimado === 'string') {
+        const match = tiempoEstimado.match(/(\d+)\s*d[ií]as?/i);
+        if (match) {
+          dias = parseInt(match[1], 10);
+        }
+      }
+      const fin = new Date(hoy);
+      fin.setDate(hoy.getDate() + dias);
+      fechaFin = fin.toISOString().slice(0, 10);
+
+      const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?, ?, ?)`;
       try {
-        const insertResult = await query(sql, [descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);
+        const insertResult = await query(sql, [fechaInicio, fechaFin, descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);
         results.push({ tarea: descripcion, tiempoEstimado, insertId: insertResult.insertId });
       } catch (err) {
         results.push({ tarea: descripcion, tiempoEstimado, error: err.message });
       }
+    }
+    // If no tasks were processed, send an error
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'No task was found.' });
     }
     res.json({ tareasProcesadas: results });
   } catch (error) {

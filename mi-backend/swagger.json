@@ -103,13 +103,13 @@
             "format": "url",
             "description": "Optional URL to a PDF document for AI processing."
           },
-          "question": {
+          "question1": {
             "type": "string",
             "description": "The question or prompt for the AI to generate tasks."
           }
         },
         "required": [
-          "question"
+          "question1"
         ]
       },
       "AIAssistedTaskResponse": {
