@@ -326,6 +326,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     // Iterate over keys and group tarea/tiempoEstimado/horas pairs
     // Example: { "tarea_1": "...", "tiempoEstimado_1": "...", "horasEstimadas_1": "...", ... }
     const tareas = [];
+    //console.log('tareasJson keys:', Object.keys(tareasJson));
     for (const key of Object.keys(tareasJson)) {
       if (key.toLowerCase().startsWith('tarea')) {
         // Extract index from key, e.g., tarea_1 -> 1
@@ -337,6 +338,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
         const horasKey = `horasEstimadas_${idx}`;
         const tiempoEstimado = tareasJson[tiempoKey] || null;
         let horas = tareasJson[horasKey];
+        //console.log(`idx: ${idx}, horasKey: ${horasKey}, horas value:`, horas);
         // If horas is not a valid integer, default to 3
         if (typeof horas === 'string') {
           const horasInt = parseInt(horas, 10);
