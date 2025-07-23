@@ -323,8 +323,8 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     }
 
     let results = [];
-    // Iterate over keys and group tarea/tiempoEstimado pairs
-    // Example: { "tarea_1": "...", "tiempoEstimado_1": "...", "tarea_2": "...", ... }
+    // Iterate over keys and group tarea/tiempoEstimado/horas pairs
+    // Example: { "tarea_1": "...", "tiempoEstimado_1": "...", "horasEstimadas_1": "...", ... }
     const tareas = [];
     for (const key of Object.keys(tareasJson)) {
       if (key.toLowerCase().startsWith('tarea')) {
@@ -332,15 +332,32 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
         const idx = key.split('_')[1] || '';
         const descripcion = tareasJson[key];
         const titulo = tareasJson[key];
-        // Find matching tiempoEstimado key
+        // Find matching tiempoEstimado and horas keys
         const tiempoKey = `tiempoEstimado_${idx}`;
+        const horasKey = `horasEstimadas_${idx}`;
         const tiempoEstimado = tareasJson[tiempoKey] || null;
-        tareas.push({ descripcion, titulo, tiempoEstimado });
+        let horas = tareasJson[horasKey];
+        // If horas is not a valid integer, default to 3
+        if (typeof horas === 'string') {
+          const horasInt = parseInt(horas, 10);
+          if (isNaN(horasInt)) {
+            horas = 3;
+          } else {
+            horas = horasInt;
+          }
+        } else if (typeof horas !== 'number' || isNaN(horas)) {
+          horas = 3;
+        }
+        tareas.push({ descripcion, titulo, tiempoEstimado, horas });
       }
+    }
+    // If no key starts with 'tarea', return error
+    if (tareas.length === 0) {
+      return res.status(400).json({ error: 'La respuesta de la IA no contiene ninguna tarea.' });
     }
 
     for (const tareaObj of tareas) {
-      const { descripcion, titulo, tiempoEstimado } = tareaObj;
+      const { descripcion, titulo, tiempoEstimado, horas } = tareaObj;
       // Calcular fechaInicio y fechaFin según tiempoEstimado
       let fechaInicio, fechaFin;
       const hoy = new Date();
@@ -356,12 +373,12 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
       fin.setDate(hoy.getDate() + dias);
       fechaFin = fin.toISOString().slice(0, 10);
 
-      const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, titulo, usuario, tiempo_estimado) VALUES (?, ?, ?, ?, ?, ?)`;
+      const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, titulo, usuario, tiempo_estimado, horas) VALUES (?, ?, ?, ?, ?, ?, ?)`;
       try {
-        const insertResult = await query(sql, [fechaInicio, fechaFin, descripcion, titulo, req.session.user?.id || null, tiempoEstimado]);
-        results.push({ tarea: descripcion, tiempoEstimado, insertId: insertResult.insertId });
+        const insertResult = await query(sql, [fechaInicio, fechaFin, descripcion, titulo, req.session.user?.id || null, tiempoEstimado, horas]);
+        results.push({ tarea: descripcion, tiempoEstimado, horas, insertId: insertResult.insertId });
       } catch (err) {
-        results.push({ tarea: descripcion, tiempoEstimado, error: err.message });
+        results.push({ tarea: descripcion, tiempoEstimado, horas, error: err.message });
       }
     }
     // If no tasks were processed, send an error
