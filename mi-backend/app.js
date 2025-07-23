@@ -364,6 +364,10 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
         results.push({ tarea: descripcion, tiempoEstimado, error: err.message });
       }
     }
+    // If no tasks were processed, send an error
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'No task was found.' });
+    }
     res.json({ tareasProcesadas: results });
   } catch (error) {
     console.error('Error en /tareas/ia/:id:', error.response?.data || error.message || error);

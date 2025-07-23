@@ -23,7 +23,6 @@ app = FastAPI()
 if not os.environ.get("GOOGLE_API_KEY"):
   os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter API key for Google Gemini: ")
 
-client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 # Ensure GOOGLE_APPLICATION_CREDENTIALS is set for Speech-to-Text
 # It's highly recommended to use a service account key file for production.
@@ -134,13 +133,17 @@ async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
 
     else:
         # para hablar
-        messages = [
-        SystemMessage(DEFAULT_QUESTION),
-        HumanMessage(PDFRequest.question1),
-        ]      
+        result = ""
+        try:
+            messages = [
+            SystemMessage(DEFAULT_QUESTION),
+            HumanMessage(data.question1),
+            ]      
 
-        result = llm.invoke(messages)
-        return result.content
+            result = llm.invoke(messages)
+            return result.content
+        except:
+            print("error while talking: result: " + result + " humanmessage: " + HumanMessage + " systemmessage: " + DEFAULT_QUESTION)
 
 
 
