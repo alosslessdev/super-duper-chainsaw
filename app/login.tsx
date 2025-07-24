@@ -1,36 +1,35 @@
 // app/login.tsx
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { useRouter } from 'expo-router'; // <-- Importamos router
+import { Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import styled from 'styled-components/native';
 import { colors } from './styles/colors';
 
 const LoginScreen = () => {
-  const router = useRouter(); // <-- Hook para navegación
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // Validar usuario fijo
-    if (email === 'admin' && password === '1234') {
-      Alert.alert('Bienvenido', 'Has ingresado correctamente', [
-        {
-          text: 'Aceptar',
-          onPress: () => router.push('/app/home'), // Navegar a "home"
-        },
-      ]);
-    } else {
-      Alert.alert('Error', 'Por favor ingresa un correo válido y contraseña correcta');
-    }
-  };
+const handleLogin = () => {
+  if (email === 'admin' && password === '1234') {
+    Alert.alert('Bienvenido', 'Has ingresado correctamente', [
+      {
+        text: 'Aceptar',
+        onPress: () => router.replace('/(app)'),
+      },
+    ]);
+  } else {
+    Alert.alert('Error', 'Por favor ingresa un correo válido y contraseña correcta');
+  }
+};
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.logo}>Growin</Text>
-      <Text style={styles.title}>Inicia sesión para tener seguimiento de tus rutinas</Text>
+    <Container>
+      <Logo>Growin</Logo>
+      <Title>Inicia sesión para tener seguimiento de tus rutinas</Title>
 
-      <Text style={styles.label}>Correo electrónico</Text>
-      <TextInput
-        style={styles.input}
+      <Label>Correo electrónico</Label>
+      <Input
         placeholder="admin"
         value={email}
         onChangeText={setEmail}
@@ -39,9 +38,8 @@ const LoginScreen = () => {
         accessibilityLabel="Campo correo electrónico"
       />
 
-      <Text style={styles.label}>Contraseña</Text>
-      <TextInput
-        style={styles.input}
+      <Label>Contraseña</Label>
+      <Input
         placeholder="1234"
         value={password}
         onChangeText={setPassword}
@@ -49,70 +47,77 @@ const LoginScreen = () => {
         accessibilityLabel="Campo contraseña"
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin} accessibilityRole="button">
-        <Text style={styles.buttonText}>Ingresar</Text>
-      </TouchableOpacity>
+      <Button onPress={handleLogin} accessibilityRole="button">
+        <ButtonText>Ingresar</ButtonText>
+      </Button>
 
-      <TouchableOpacity>
-        <Text style={styles.link}>¿Olvidaste tu contraseña?</Text>
-      </TouchableOpacity>
+      <LinkTouchable>
+        <LinkText>¿Olvidaste tu contraseña?</LinkText>
+      </LinkTouchable>
 
-      <TouchableOpacity>
-        <Text style={styles.link}>Registrarme</Text>
-      </TouchableOpacity>
-    </View>
+      <LinkTouchable>
+        <LinkText>Registrarme</LinkText>
+      </LinkTouchable>
+    </Container>
   );
 };
 
 export default LoginScreen;
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  logo: {
-    fontSize: 24,
-    color: colors.white,
-    textAlign: 'center',
-    marginBottom: 10,
-    fontWeight: 'bold',
-  },
-  title: {
-    fontSize: 18,
-    color: colors.white,
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  label: {
-    color: colors.white,
-    marginBottom: 5,
-    fontWeight: 'bold',
-  },
-  input: {
-    backgroundColor: colors.white,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 15,
-  },
-  button: {
-    backgroundColor: colors.white,
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  buttonText: {
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  link: {
-    color: colors.white,
-    textAlign: 'center',
-    marginTop: 10,
-    textDecorationLine: 'underline',
-  },
-});
+// Estilos con styled-components
+const Container = styled.View`
+  flex: 1;
+  background-color: ${colors.primary};
+  padding: 20px;
+  justify-content: center;
+`;
+
+const Logo = styled.Text`
+  font-size: 24px;
+  color: ${colors.white};
+  text-align: center;
+  margin-bottom: 10px;
+  font-weight: bold;
+`;
+
+const Title = styled.Text`
+  font-size: 18px;
+  color: ${colors.white};
+  text-align: center;
+  margin-bottom: 30px;
+`;
+
+const Label = styled.Text`
+  color: ${colors.white};
+  margin-bottom: 5px;
+  font-weight: bold;
+`;
+
+const Input = styled.TextInput`
+  background-color: ${colors.white};
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+`;
+
+const Button = styled.TouchableOpacity`
+  background-color: ${colors.white};
+  padding: 15px;
+  border-radius: 10px;
+  align-items: center;
+  margin-vertical: 10px;
+`;
+
+const ButtonText = styled.Text`
+  color: ${colors.primary};
+  font-weight: bold;
+`;
+
+const LinkTouchable = styled.TouchableOpacity``;
+
+const LinkText = styled.Text`
+  color: ${colors.white};
+  text-align: center;
+  margin-top: 10px;
+  text-decoration: underline;
+`;
