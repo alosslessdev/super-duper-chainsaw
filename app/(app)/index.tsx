@@ -25,7 +25,7 @@ import { createInterface } from "node:readline/promises";
 import * as DocumentPicker from 'expo-document-picker';
 import { getAwsKeys } from '../awsKeyStore';
 
-
+let url: string; //url para archivo en AWS s3
 
 // --------------------
 // Definición de tipos
@@ -108,40 +108,43 @@ export default function HomeScreen() {
 
     if (result.assets) {
 
-      const s3Client = new S3Client({
-      region: "us-east-1", // set your region
-      credentials: {
-        accessKeyId: secretKeyId ?? "",
-        secretAccessKey: secretKey ?? "",
-    },
-    });
+        const s3Client = new S3Client({
+        region: "us-east-1", // set your region
+        credentials: {
+          accessKeyId: secretKeyId ?? "",
+          secretAccessKey: secretKey ?? "",
+        },
+      });
 
 
-    PDFfile = result.assets[0].uri;
-    fileNamePDF = result.assets[0].name;
+      PDFfile = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
 
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: "save-pdf-test",
-        Key: fileNamePDF,
-        Body: PDFfile,
-      }),
-    );
-      // Aquí puedes subir el archivo a S3 usando result.uri, result.name, etc.
-      // Ejemplo:
-      // const fileUri = result.uri;
-      // const fileName = result.name;
-      // const fileType = result.mimeType;
-      // ...subir a S3...
-      //alert(`Archivo seleccionado: ${result.name}`);
+
+
+      try{
+    
+      const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: "save-pdf-test",
+            Key: fileNamePDF,
+            Body: PDFfile,
+          }),
+        );
+
+      if (response.ETag){
+        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}` //change to random filename
+      }
+
+      }catch (err){
+        console.log("error while uploading")
+      }
+
     }
+
+    
+
   };
-
-
-
-
-
-
 
 
 
@@ -218,10 +221,6 @@ export default function HomeScreen() {
 };
 
 
-
-
-
-
   // --------------------
   // Renderizado
   // --------------------
@@ -283,7 +282,7 @@ export default function HomeScreen() {
               onChangeText={setInput}
               placeholder="Escribe un mensaje..."
             />
-            <SendButton onPress={sendMsg}>
+            <SendButton onPress={() => sendMsg(url, input)}>
               <SendText>➤</SendText>
             </SendButton>
 

@@ -296,7 +296,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
           `http://localhost:8000/secure-data`,
           {
             pdf_url: req.body.pdf_url || '',
-            question1: req.body.question
+            question: req.body.question
           },
           {
             headers: {
