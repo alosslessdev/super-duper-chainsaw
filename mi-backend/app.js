@@ -12,8 +12,13 @@ import conexion from './db.js'; // Importa la conexión
 import swaggerDocument from './swagger.json' with { type: "json" };
 // Prompt for API key at startup
 const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEchoBack: true }) || '';
+const secretKeyIdStore = readlineSync.question('Ingrese el Key ID para AWS S3: ', { hideEchoBack: true }) || '';
+const secretKeyStore = readlineSync.question('Ingrese el secret key para AWS S3: ', { hideEchoBack: true }) || '';
 const app = express(); //declaracion de aplicacion
 const port = 3000; //puerto de red
+
+const isProd = process.argv.includes('--prod');
+const host = isProd ? '0.0.0.0' : 'localhost';
 
 import cors from 'cors';
 app.use(cors({
@@ -166,7 +171,7 @@ app.post('/login', async (req, res) => {
         req.session.save(function (err) {
           if (err) return res.status(500).json({ error: 'Error al guardar la sesión' });
           // Only send one response after session is saved
-          res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user });
+          res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user, secretKeyId: secretKeyIdStore, secretKey: secretKeyStore });
         });
       } else {
         res.status(401).json({ error: 'Contraseña incorrecta' });
@@ -291,7 +296,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
           `http://localhost:8000/secure-data`,
           {
             pdf_url: req.body.pdf_url || '',
-            question1: req.body.question
+            question: req.body.question
           },
           {
             headers: {
@@ -387,7 +392,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     if (results.length === 0) {
       return res.status(404).json({ error: 'No task was found.' });
     }
-    res.json({ tareasProcesadas: results });
+    res.json({ tareasProcesadas: results }); //response
   } catch (error) {
     console.error('Error en /tareas/ia/:id:', error.response?.data || error.message || error);
     res.status(500).json({ error: 'Error al procesar la solicitud' });
@@ -398,6 +403,6 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
 
 
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`Servidor corriendo en http://${host}:${port}`);
 });

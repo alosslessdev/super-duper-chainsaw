@@ -20,6 +20,13 @@ import styled from 'styled-components/native';
 
 import { colors } from '../styles/colors';
 
+import {S3Client, PutObjectCommand} from "@aws-sdk/client-s3"; //conexion a amazon s3 para subir archivos para que el backend lo lea
+import { createInterface } from "node:readline/promises";
+import * as DocumentPicker from 'expo-document-picker';
+import { getAwsKeys } from '../awsKeyStore';
+
+let url: string; //url para archivo en AWS s3
+
 // --------------------
 // Definición de tipos
 // --------------------
@@ -62,7 +69,7 @@ export default function HomeScreen() {
   }, []);
 
   // Función para enviar un nuevo mensaje
-  const sendMsg = () => {
+  /* const sendMsg = () => {
     // No enviar si la cadena está vacía o sólo espacios
     if (!input.trim()) return;
     // Construye el mensaje del usuario
@@ -86,7 +93,133 @@ export default function HomeScreen() {
         },
       ]);
     }, 800);
+  }; */
+
+
+
+
+
+
+
+ const uploadFile = async () => {
+    let fileNamePDF, PDFfile;
+    const result = await DocumentPicker.getDocumentAsync({});
+    const { secretKeyId, secretKey } = getAwsKeys();
+
+    if (result.assets) {
+
+        const s3Client = new S3Client({
+        region: "us-east-1", // set your region
+        credentials: {
+          accessKeyId: secretKeyId ?? "",
+          secretAccessKey: secretKey ?? "",
+        },
+      });
+
+
+      PDFfile = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
+
+
+
+      try{
+    
+      const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: "save-pdf-test",
+            Key: fileNamePDF,
+            Body: PDFfile,
+          }),
+        );
+
+      if (response.ETag){
+        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}` //change to random filename
+      }
+
+      }catch (err){
+        console.log("error while uploading")
+      }
+
+    }
+
+    
+
   };
+
+
+
+ const sendMsg = async (pdfUrl: string, question: string) => {
+  const { sessionCookie } = getAwsKeys();
+      // No enviar si la cadena está vacía o sólo espacios
+  if (!input.trim()) return;
+  
+  // Construye el mensaje del usuario
+    const newMsg: Msg = {
+      id: Date.now().toString(),
+      text: input.trim(),
+      fromMe: true,
+    };
+
+    // Agrega el mensaje al estado
+    setMsgs(cur => [...cur, newMsg]);
+    setInput(''); // limpia el input
+
+
+    // Simula una respuesta automática tras un retraso
+    setTimeout(() => {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-bot',
+          text: 'Respuesta automática',
+          fromMe: false,
+        },
+      ]);
+    }, 800);
+
+  try {
+    const response = await fetch('http://localhost:3000/tareas/ia/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': sessionCookie, // Pass session cookie for authentication
+      },
+      credentials: 'include',
+      body: JSON.stringify({ pdf_url: pdfUrl, question }),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      // Handle response from /tareas/ia/
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ia',
+          text: JSON.stringify(data),
+          fromMe: false,
+        },
+      ]);
+    } else {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-error',
+          text: data.error || 'Error al procesar IA',
+          fromMe: false,
+        },
+      ]);
+    }
+  } catch (err) {
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString() + '-error',
+        text: 'No se pudo conectar a la IA',
+        fromMe: false,
+      },
+    ]);
+  }
+};
+
 
   // --------------------
   // Renderizado
@@ -149,9 +282,14 @@ export default function HomeScreen() {
               onChangeText={setInput}
               placeholder="Escribe un mensaje..."
             />
-            <SendButton onPress={sendMsg}>
+            <SendButton onPress={() => sendMsg(url, input)}>
               <SendText>➤</SendText>
             </SendButton>
+
+            <UploadButton onPress={uploadFile}>
+              <SendText>📤</SendText>
+            </UploadButton>
+
           </InputRow>
         </Container>
       </KeyboardAvoidingView>
@@ -243,6 +381,13 @@ const SendButton = styled.TouchableOpacity`
   border-radius: 20px;
 `;
 
+const UploadButton = styled.TouchableOpacity`
+  background-color: #34C759;
+  padding: 10px 16px;
+  border-radius: 20px;
+  margin-left: 8px;
+`;
+
 // Texto del botón de envío\dd
 const SendText = styled.Text`
   color: white;
@@ -253,3 +398,11 @@ const HeaderText = styled.Text`
   color: white;
   font-size: 20px;
 `;
+
+
+// para subir a aws s3
+
+
+ 
+
+ 
