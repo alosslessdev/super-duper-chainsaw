@@ -20,6 +20,13 @@ import styled from 'styled-components/native';
 
 import { colors } from '../styles/colors';
 
+import {S3Client, PutObjectCommand} from "@aws-sdk/client-s3"; //conexion a amazon s3 para subir archivos para que el backend lo lea
+import { createInterface } from "node:readline/promises";
+import * as DocumentPicker from 'expo-document-picker';
+import { getAwsKeys } from '../awsKeyStore';
+
+
+
 // --------------------
 // Definición de tipos
 // --------------------
@@ -152,6 +159,11 @@ export default function HomeScreen() {
             <SendButton onPress={sendMsg}>
               <SendText>➤</SendText>
             </SendButton>
+
+            <UploadButton onPress={uploadFile}>
+              <SendText>📤</SendText>
+            </UploadButton>
+
           </InputRow>
         </Container>
       </KeyboardAvoidingView>
@@ -243,6 +255,13 @@ const SendButton = styled.TouchableOpacity`
   border-radius: 20px;
 `;
 
+const UploadButton = styled.TouchableOpacity`
+  background-color: #34C759;
+  padding: 10px 16px;
+  border-radius: 20px;
+  margin-left: 8px;
+`;
+
 // Texto del botón de envío\dd
 const SendText = styled.Text`
   color: white;
@@ -253,3 +272,44 @@ const HeaderText = styled.Text`
   color: white;
   font-size: 20px;
 `;
+
+
+// para subir a aws s3
+
+let fileNamePDF, PDFfile;
+
+  const uploadFile = async () => {
+    
+    const result = await DocumentPicker.getDocumentAsync({});
+    const { secretKeyId, secretKey } = getAwsKeys();
+
+    if (result.assets) {
+
+      const s3Client = new S3Client({
+      region: "us-east-1", // set your region
+      credentials: {
+        accessKeyId: secretKeyId ?? "",
+        secretAccessKey: secretKey ?? "",
+    },
+    });
+
+
+    PDFfile = result.assets[0].uri;
+    fileNamePDF = result.assets[0].name;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: "save-pdf-test",
+        Key: fileNamePDF,
+        Body: PDFfile,
+      }),
+    );
+      // Aquí puedes subir el archivo a S3 usando result.uri, result.name, etc.
+      // Ejemplo:
+      // const fileUri = result.uri;
+      // const fileName = result.name;
+      // const fileType = result.mimeType;
+      // ...subir a S3...
+      //alert(`Archivo seleccionado: ${result.name}`);
+    }
+};
