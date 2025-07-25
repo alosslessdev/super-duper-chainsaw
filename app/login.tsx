@@ -13,10 +13,6 @@ const LoginScreen = () => {
 
 const handleLogin = async () => {
 
-
-
-
-
  try {
       const response = await fetch('http://localhost:3000/login', {
         method: 'POST',
@@ -26,7 +22,9 @@ const handleLogin = async () => {
       });
       const data = await response.json();
       if (response.ok) {
-    setAwsKeys(data.secretKeyId, data.secretKey);
+      // Get session cookie from response headers
+      const cookie = response.headers.get('set-cookie') || '';
+      setAwsKeys(data.secretKeyId, data.secretKey, cookie);
         ;
         Alert.alert('Bienvenido', 'Has ingresado correctamente', [
           {

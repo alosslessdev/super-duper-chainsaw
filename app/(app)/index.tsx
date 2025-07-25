@@ -95,6 +95,106 @@ export default function HomeScreen() {
     }, 800);
   };
 
+
+
+
+
+
+  
+ const uploadFile = async () => {
+    let fileNamePDF, PDFfile;
+    const result = await DocumentPicker.getDocumentAsync({});
+    const { secretKeyId, secretKey } = getAwsKeys();
+
+    if (result.assets) {
+
+      const s3Client = new S3Client({
+      region: "us-east-1", // set your region
+      credentials: {
+        accessKeyId: secretKeyId ?? "",
+        secretAccessKey: secretKey ?? "",
+    },
+    });
+
+
+    PDFfile = result.assets[0].uri;
+    fileNamePDF = result.assets[0].name;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: "save-pdf-test",
+        Key: fileNamePDF,
+        Body: PDFfile,
+      }),
+    );
+      // Aquí puedes subir el archivo a S3 usando result.uri, result.name, etc.
+      // Ejemplo:
+      // const fileUri = result.uri;
+      // const fileName = result.name;
+      // const fileType = result.mimeType;
+      // ...subir a S3...
+      //alert(`Archivo seleccionado: ${result.name}`);
+    }
+  };
+
+
+
+
+
+
+
+
+
+ const sendMsg = async (pdfUrl: string, question: string) => {
+  const { sessionCookie } = getAwsKeys();
+  try {
+    const response = await fetch('http://localhost:3000/tareas/ia/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': sessionCookie, // Pass session cookie for authentication
+      },
+      credentials: 'include',
+      body: JSON.stringify({ pdf_url: pdfUrl, question }),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      // Handle response from /tareas/ia/
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ia',
+          text: JSON.stringify(data),
+          fromMe: false,
+        },
+      ]);
+    } else {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-error',
+          text: data.error || 'Error al procesar IA',
+          fromMe: false,
+        },
+      ]);
+    }
+  } catch (err) {
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString() + '-error',
+        text: 'No se pudo conectar a la IA',
+        fromMe: false,
+      },
+    ]);
+  }
+};
+
+
+
+
+
+
   // --------------------
   // Renderizado
   // --------------------
@@ -276,40 +376,7 @@ const HeaderText = styled.Text`
 
 // para subir a aws s3
 
-let fileNamePDF, PDFfile;
 
-  const uploadFile = async () => {
-    
-    const result = await DocumentPicker.getDocumentAsync({});
-    const { secretKeyId, secretKey } = getAwsKeys();
+ 
 
-    if (result.assets) {
-
-      const s3Client = new S3Client({
-      region: "us-east-1", // set your region
-      credentials: {
-        accessKeyId: secretKeyId ?? "",
-        secretAccessKey: secretKey ?? "",
-    },
-    });
-
-
-    PDFfile = result.assets[0].uri;
-    fileNamePDF = result.assets[0].name;
-
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: "save-pdf-test",
-        Key: fileNamePDF,
-        Body: PDFfile,
-      }),
-    );
-      // Aquí puedes subir el archivo a S3 usando result.uri, result.name, etc.
-      // Ejemplo:
-      // const fileUri = result.uri;
-      // const fileName = result.name;
-      // const fileType = result.mimeType;
-      // ...subir a S3...
-      //alert(`Archivo seleccionado: ${result.name}`);
-    }
-};
+ 
