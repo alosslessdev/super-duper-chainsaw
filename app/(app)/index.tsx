@@ -69,7 +69,7 @@ export default function HomeScreen() {
   }, []);
 
   // Función para enviar un nuevo mensaje
-  const sendMsg = () => {
+  /* const sendMsg = () => {
     // No enviar si la cadena está vacía o sólo espacios
     if (!input.trim()) return;
     // Construye el mensaje del usuario
@@ -93,14 +93,14 @@ export default function HomeScreen() {
         },
       ]);
     }, 800);
-  };
+  }; */
 
 
 
 
 
 
-  
+
  const uploadFile = async () => {
     let fileNamePDF, PDFfile;
     const result = await DocumentPicker.getDocumentAsync({});
@@ -147,6 +147,33 @@ export default function HomeScreen() {
 
  const sendMsg = async (pdfUrl: string, question: string) => {
   const { sessionCookie } = getAwsKeys();
+      // No enviar si la cadena está vacía o sólo espacios
+  if (!input.trim()) return;
+  
+  // Construye el mensaje del usuario
+    const newMsg: Msg = {
+      id: Date.now().toString(),
+      text: input.trim(),
+      fromMe: true,
+    };
+
+    // Agrega el mensaje al estado
+    setMsgs(cur => [...cur, newMsg]);
+    setInput(''); // limpia el input
+
+
+    // Simula una respuesta automática tras un retraso
+    setTimeout(() => {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-bot',
+          text: 'Respuesta automática',
+          fromMe: false,
+        },
+      ]);
+    }, 800);
+
   try {
     const response = await fetch('http://localhost:3000/tareas/ia/', {
       method: 'POST',
