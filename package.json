@@ -11,6 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.850.0",
     "@expo/vector-icons": "^14.1.0",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/drawer": "^7.3.9",
@@ -20,6 +21,7 @@
     "expo": "~53.0.12",
     "expo-blur": "~14.1.5",
     "expo-constants": "~17.1.6",
+    "expo-document-picker": "^13.1.6",
     "expo-font": "~13.3.1",
     "expo-haptics": "~14.1.4",
     "expo-image": "~2.4.0",

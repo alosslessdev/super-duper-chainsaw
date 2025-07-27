@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import styled from "styled-components/native";
 
+
 /**
  * Pantalla de bienvenida de la app.
  * Muestra el nombre de la app, un mensaje motivador y un botón para comenzar.

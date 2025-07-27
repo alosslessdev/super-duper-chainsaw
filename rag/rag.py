@@ -89,7 +89,7 @@ def process_pdf_from_url(pdf_url: str):
 # A protected endpoint for LLM answer
 class PDFRequest(BaseModel):
     pdf_url: str
-    question1: str = """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""
+    question: str = """Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.  Si hay una lista de puntos a hacer, muestra la lista."""
 
 
 DEFAULT_QUESTION = (
@@ -127,7 +127,7 @@ async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
         graph_builder.add_edge(START, "retrieve")
         graph = graph_builder.compile()
 
-        combined_question = data.question1 + " " + DEFAULT_QUESTION
+        combined_question = data.question + " " + DEFAULT_QUESTION
         response = graph.invoke({"question": combined_question})
         return response["answer"]
 
@@ -137,7 +137,7 @@ async def llmAnswer(data: PDFRequest, api_key: str = Depends(get_api_key)):
         try:
             messages = [
             SystemMessage(DEFAULT_QUESTION),
-            HumanMessage(data.question1),
+            HumanMessage(data.question),
             ]      
 
             result = llm.invoke(messages)
