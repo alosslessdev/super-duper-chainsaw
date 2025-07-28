@@ -1,9 +1,9 @@
-import { Stack } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
-import styled from 'styled-components/native';
+import { DrawerActions, useNavigation } from '@react-navigation/native';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { FlatList } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { DrawerActions } from '@react-navigation/native';
+import styled from 'styled-components/native';
+
+
 import { colors } from '../styles/colors';
 
 // Tipo de dato para los mensajes

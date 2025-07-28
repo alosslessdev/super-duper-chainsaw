@@ -1,99 +1,239 @@
-// app/app/home.tsx
-// ------------------------------------------
-// Pantalla principal de la app Growin.
-// Este componente muestra la hora actual, un listado de mensajes
-// y un campo de entrada para enviar mensajes.
-// Utiliza Expo Router para navegación y styled-components para estilos.
-// Estilo: Programación Declarativa con Componentes Funcionales
-// ------------------------------------------
-
-import React, { useState, useEffect } from 'react';
+import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+
 import {
-  Platform,
   FlatList,
   KeyboardAvoidingView,
-  // KeyboardAvoidingView ajusta la interfaz al teclado en iOS
+  Modal,
+  Platform,
 } from 'react-native';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
 import styled from 'styled-components/native';
 
+import { Picker as RNPicker } from '@react-native-picker/picker';
+
+import AnalogClock from '../(app)/analogClock';
 import { colors } from '../styles/colors';
 
-// --------------------
-// Definición de tipos
-// --------------------
-// Msg: representa un mensaje en la conversación.
-// - id: identificador único (string) para FlatList
-// - text: contenido del mensaje
-// - fromMe: indica si el mensaje fue enviado por el usuario
-// --------------------
+const taskTypes = ['ocio', 'importante', 'liviana', 'descanso'];
+const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
+const today = new Date();
+const formattedDate = today.toLocaleDateString('es-ES', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+type Task = {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  hours: number; // duración en horas
+  startHour: number; // hora de inicio 0-23
+};
+
 type Msg = {
   id: string;
   text: string;
   fromMe: boolean;
 };
 
-// Componente principal HomeScreen
-export default function HomeScreen() {
-  // expo-router hook para navegación basada en rutas
+const hourWidth = 30; // ancho fijo para cada hora
+const hours = Array.from({ length: 24 }, (_, i) => i);
+
+export default function Index() {
   const router = useRouter();
-  // hook de React Navigation para disparar acciones del drawer
   const nav = useNavigation();
 
-  // ------------------------------------------------
-  // Estado interno del componente
-  // ------------------------------------------------
-  // time: mantiene la hora actual como cadena
-  // input: contenido del TextInput
-  // msgs: arreglo de mensajes mostrados en la FlatList
-  // ------------------------------------------------
-  const [time, setTime] = useState<string>('');
   const [input, setInput] = useState<string>('');
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
 
-  // useEffect para actualizar la hora cada segundo
-  useEffect(() => {
-    // Función tick: obtiene la hora local y la formatea
-    const tick = () => setTime(new Date().toLocaleTimeString());
-    tick(); // inicializa inmediatamente
-    const tm = setInterval(tick, 1000); // actualiza c/1s
-    return () => clearInterval(tm); // limpieza al desmontar
-  }, []);
+  // Para controlar modal agregar/editar
+  const [taskName, setTaskName] = useState('');
+  const [taskType, setTaskType] = useState<string>('ocio');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [taskHours, setTaskHours] = useState('1');
+  const [taskStartHour, setTaskStartHour] = useState('0');
 
-  // Función para enviar un nuevo mensaje
+  // Para editar
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Para mostrar u ocultar chat
+  const [chatVisible, setChatVisible] = useState(false);
+
+  // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = () => {
-    // No enviar si la cadena está vacía o sólo espacios
     if (!input.trim()) return;
-    // Construye el mensaje del usuario
-    const newMsg: Msg = {
+
+    const userMsg: Msg = {
       id: Date.now().toString(),
       text: input.trim(),
       fromMe: true,
     };
-    // Agrega el mensaje al estado
-    setMsgs(cur => [...cur, newMsg]);
-    setInput(''); // limpia el input
+    setMsgs(cur => [...cur, userMsg]);
+    setInput('');
 
-    // Simula una respuesta automática tras un retraso
     setTimeout(() => {
+      let botResponse = 'No entiendo tu mensaje.';
+
+      const text = userMsg.text.toLowerCase();
+
+      if (text.includes('hola')) {
+        botResponse = '¡Hola! ¿En qué puedo ayudarte hoy?';
+      } else if (text.includes('tarea')) {
+        botResponse = 'Recuerda que puedes agregar una nueva tarea con el botón "+"';
+      } else if (text.includes('adiós') || text.includes('chao')) {
+        botResponse = '¡Hasta luego! Que tengas un buen día 😊';
+      } else if (text.includes('gracias')) {
+        botResponse = '¡De nada! Estoy aquí para ayudarte.';
+      }
+
       setMsgs(cur => [
         ...cur,
         {
           id: Date.now().toString() + '-bot',
-          text: 'Respuesta automática',
+          text: botResponse,
           fromMe: false,
         },
       ]);
     }, 800);
   };
 
-  // --------------------
-  // Renderizado
-  // --------------------
+  // Función para abrir modal agregar o editar tarea
+  const openTaskModal = (task?: Task) => {
+    if (task) {
+      // Editar tarea: precargar datos
+      setTaskName(task.name);
+      setTaskType(task.type);
+      setTaskDescription(task.description);
+      setTaskHours(task.hours.toString());
+      setTaskStartHour(task.startHour.toString());
+      setSelectedTask(task);
+      setIsEditing(true);
+    } else {
+      // Nueva tarea
+      setTaskName('');
+      setTaskType('ocio');
+      setTaskDescription('');
+      setTaskHours('1');
+      setTaskStartHour('0');
+      setSelectedTask(null);
+      setIsEditing(false);
+    }
+    setModalVisible(true);
+  };
+
+  const saveTask = () => {
+    if (!taskName.trim() || taskName.length > 20) {
+      alert('El nombre debe tener máximo 20 caracteres.');
+      return;
+    }
+    if (taskDescription.length > 50) {
+      alert('La descripción debe tener máximo 50 caracteres.');
+      return;
+    }
+    const duration = Number(taskHours);
+    if (isNaN(duration) || duration <= 0 || duration > 24) {
+      alert('Las horas deben ser un número entre 1 y 24.');
+      return;
+    }
+    const start = Number(taskStartHour);
+    if (isNaN(start) || start < 0 || start > 23) {
+      alert('La hora de inicio debe estar entre 0 y 23.');
+      return;
+    }
+
+    const end = start + duration;
+
+    for (const t of tasks) {
+      if (isEditing && selectedTask && t.id === selectedTask.id) continue;
+
+      const tStart = t.startHour;
+      const tEnd = t.startHour + t.hours;
+
+      if (!(end <= tStart || start >= tEnd)) {
+        alert(
+          `Conflicto con tarea "${t.name}" programada de ${tStart}:00 a ${tEnd}:00`
+        );
+        return;
+      }
+    }
+
+    if (isEditing && selectedTask) {
+      setTasks(cur =>
+        cur.map(t =>
+          t.id === selectedTask.id
+            ? {
+                ...t,
+                name: taskName.trim(),
+                type: taskType,
+                description: taskDescription.trim(),
+                hours: duration,
+                startHour: start,
+              }
+            : t
+        )
+      );
+    } else {
+      const newTask: Task = {
+        id: Date.now().toString(),
+        name: taskName.trim(),
+        type: taskType,
+        description: taskDescription.trim(),
+        hours: duration,
+        startHour: start,
+      };
+      setTasks(cur => [...cur, newTask]);
+    }
+
+    setTaskName('');
+    setTaskType('ocio');
+    setTaskDescription('');
+    setTaskHours('1');
+    setTaskStartHour('0');
+    setSelectedTask(null);
+    setIsEditing(false);
+    setModalVisible(false);
+  };
+
+  const handleEdit = () => {
+    if (selectedTask) {
+      openTaskModal(selectedTask);
+    }
+    setActionModalVisible(false);
+  };
+
+  const handleDelete = () => {
+    if (selectedTask) {
+      setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
+    }
+    setActionModalVisible(false);
+  };
+
+  const FechaText = styled.Text`
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 10px;
+    text-transform: capitalize;
+  `;
+
+  const TouchableTaskItem = styled.TouchableOpacity`
+    background-color: #e0f0ff;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+  `;
+
   return (
     <>
-      {/* Configuración del header a través de Stack.Screen */}
       <Stack.Screen
         options={{
           title: '',
@@ -101,124 +241,233 @@ export default function HomeScreen() {
           headerStyle: { backgroundColor: colors.primary },
           headerTitleAlign: 'center',
           headerTintColor: 'white',
-
-          // Botón que abre el drawer
           headerLeft: () => (
             <HeaderButton onPress={() => nav.dispatch(DrawerActions.toggleDrawer())}>
               <HeaderText>☰</HeaderText>
             </HeaderButton>
           ),
-
-          // Botón que navega a /settings
           headerRight: () => (
             <HeaderButton onPress={() => router.push('/settings')}>
               <HeaderText>⚙️</HeaderText>
             </HeaderButton>
           ),
-          headerTitle: () => <HeaderText>Configuración</HeaderText>,
+          headerTitle: () => <HeaderText>GROWIN</HeaderText>,
         }}
       />
 
-      {/* Ajusta vista para teclado en iOS */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Container>
-          {/* Contenedor del reloj */}
-          <ClockContainer>
-            <ClockText>{time}</ClockText>
-          </ClockContainer>
+          <FechaText>{formattedDate}</FechaText>
+          <AnalogClock />
 
-          {/* Lista de mensajes */}
+          <AddButton onPress={() => openTaskModal()}>
+            <AddButtonText>+</AddButtonText>
+          </AddButton>
+
+          {/* Modal agregar/editar tarea */}
+          <Modal
+            visible={modalVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setModalVisible(false)}
+          >
+            <ModalBackground>
+              <ModalContainer>
+                <ModalTitle>{isEditing ? 'Editar tarea' : 'Agregar nueva tarea'}</ModalTitle>
+
+                <InputLabel>Nombre de la tarea (max 20 caracteres):</InputLabel>
+                <TextInputStyled
+                  value={taskName}
+                  onChangeText={setTaskName}
+                  maxLength={20}
+                  placeholder="Ejemplo: Estudiar React"
+                />
+
+                <InputLabel>Tipo de tarea:</InputLabel>
+                <PickerStyled
+                  selectedValue={taskType}
+                  onValueChange={(itemValue: string) => setTaskType(itemValue)}
+                >
+                  {taskTypes.map(type => (
+                    <RNPicker.Item label={type} value={type} key={type} />
+                  ))}
+                </PickerStyled>
+
+                <InputLabel>Descripción (max 50 caracteres):</InputLabel>
+                <TextInputStyledDescription
+                  value={taskDescription}
+                  onChangeText={setTaskDescription}
+                  maxLength={50}
+                  placeholder="Detalles adicionales"
+                />
+
+                <InputLabel>Hora de inicio (0-23):</InputLabel>
+                <PickerStyled
+                  selectedValue={taskStartHour}
+                  onValueChange={(itemValue: string) => setTaskStartHour(itemValue)}
+                >
+                  {hoursOfDay.map(h => (
+                    <RNPicker.Item key={h} label={h} value={h} />
+                  ))}
+                </PickerStyled>
+
+                <InputLabel>Horas a dedicar (1-24):</InputLabel>
+                <TextInputStyled
+                  value={taskHours}
+                  onChangeText={setTaskHours}
+                  keyboardType="numeric"
+                  placeholder="Ejemplo: 2"
+                  maxLength={2}
+                />
+
+                <ModalButtonsRow>
+                  <ModalButtonCancel onPress={() => setModalVisible(false)}>
+                    <ModalButtonText>Cancelar</ModalButtonText>
+                  </ModalButtonCancel>
+                  <ModalButtonSave onPress={saveTask}>
+                    <ModalButtonText>{isEditing ? 'Actualizar' : 'Guardar'}</ModalButtonText>
+                  </ModalButtonSave>
+                </ModalButtonsRow>
+              </ModalContainer>
+            </ModalBackground>
+          </Modal>
+
+          {/* Modal opciones Editar / Eliminar */}
+          <Modal
+            visible={actionModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setActionModalVisible(false)}
+          >
+            <ModalBackground>
+              <ModalContainer>
+                <ModalTitle>¿Qué deseas hacer?</ModalTitle>
+
+                <ModalButtonsRow>
+                  <ModalButtonSave onPress={handleEdit}>
+                    <ModalButtonText>Editar</ModalButtonText>
+                  </ModalButtonSave>
+
+                  <ModalButtonCancel onPress={handleDelete}>
+                    <ModalButtonText>Eliminar</ModalButtonText>
+                  </ModalButtonCancel>
+                </ModalButtonsRow>
+
+                <ModalButtonCancel onPress={() => setActionModalVisible(false)} style={{ marginTop: 10 }}>
+                  <ModalButtonText>Cancelar</ModalButtonText>
+                </ModalButtonCancel>
+              </ModalContainer>
+            </ModalBackground>
+          </Modal>
+
+          {/* Lista de tareas */}
           <FlatList
-            data={msgs}                             // fuente de datos
-            keyExtractor={item => item.id}         // clave única
+            data={tasks}
+            keyExtractor={item => item.id}
             renderItem={({ item }) => (
-              <Bubble fromMe={item.fromMe}>
-                <BubbleText>{item.text}</BubbleText>
-              </Bubble>
+              <TouchableTaskItem
+                onPress={() => {
+                  setSelectedTask(item);
+                  setActionModalVisible(true);
+                }}
+              >
+                <TaskName>{item.name}</TaskName>
+                <TaskType>{item.type}</TaskType>
+                <TaskDesc>{item.description}</TaskDesc>
+                <TaskHours>
+                  De {item.startHour}:00 a {item.startHour + item.hours}:00 ({item.hours} h)
+                </TaskHours>
+              </TouchableTaskItem>
             )}
-            contentContainerStyle={{ padding: 16 }} // padding interno
+            contentContainerStyle={{ paddingBottom: 20 }}
           />
 
-          {/* Fila de entrada de texto y botón */}
-          <InputRow>
-            <Input
-              value={input}
-              onChangeText={setInput}
-              placeholder="Escribe un mensaje..."
-            />
-            <SendButton onPress={sendMsg}>
-              <SendText>➤</SendText>
-            </SendButton>
-          </InputRow>
+          {/* Botón flotante para abrir chat */}
+          {!chatVisible && (
+            <ChatOpenButton onPress={() => setChatVisible(true)}>
+              <ChatOpenButtonText>💬</ChatOpenButtonText>
+            </ChatOpenButton>
+          )}
+
+          {/* Chat modal */}
+          <Modal
+            visible={chatVisible}
+            animationType="slide"
+            transparent={false}
+            onRequestClose={() => setChatVisible(false)}
+          >
+            <ChatContainer>
+              <ChatHeader>
+                <ChatTitle>Chat</ChatTitle>
+                <CloseButton onPress={() => setChatVisible(false)}>
+                  <CloseButtonText>✕</CloseButtonText>
+                </CloseButton>
+              </ChatHeader>
+
+              <FlatList
+                data={msgs}
+                keyExtractor={item => item.id}
+                renderItem={({ item }) => (
+                  <Bubble fromMe={item.fromMe}>
+                    <BubbleText>{item.text}</BubbleText>
+                  </Bubble>
+                )}
+                contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+                inverted
+                style={{ flex: 1 }}
+              />
+
+              <InputRow>
+                <Input
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Escribe un mensaje..."
+                />
+                <SendButton onPress={sendMsg}>
+                  <SendText>➤</SendText>
+                </SendButton>
+              </InputRow>
+            </ChatContainer>
+          </Modal>
         </Container>
       </KeyboardAvoidingView>
     </>
   );
 }
 
-// --------------------
-// Styled Components
-// --------------------
+// Estilos
 
-// Contenedor principal que ocupa toda la pantalla
-type ContainerProps = {};
-const Container = styled.View<ContainerProps>`
-  flex: 1;
-  background-color: #FFFFFF;
-`;
-
-// Botón de cabecera (drawer & settings)
-const HeaderButton = styled.TouchableOpacity`
-  padding: 8px;
-`;
-
-
-// Icono de texto en el header
-const HeaderIcon = styled.Text`
-  color: white;
-  font-size: 20px;
-`;
-
-// Texto principal del header, “Growin plis”
-const HeaderSubtitle = styled.Text`
-  font-size: 18px;
-  font-weight: bold;
-  color: white;
-`;
-
-// Contenedor del reloj con margen superior e inferior
-const ClockContainer = styled.View`
-  align-items: center;
-  margin: 16px 0;
-`;
-
-// Texto de la hora
-const ClockText = styled.Text`
-  color: black;
-  font-size: 18px;
-  font-weight: bold;
-`;
-
-// Burbuja de mensaje, varía posición y color según emisor
-const Bubble = styled.View<{ fromMe: boolean }>`
+const Bubble = styled.View.withConfig({})<{ fromMe: boolean }>`
   margin-vertical: 4px;
   padding: 12px;
   max-width: 70%;
   border-radius: 12px;
-  align-self: ${({ fromMe }) => (fromMe ? 'flex-end' : 'flex-start')};
-  background-color: ${({ fromMe }) => (fromMe ? '#0A84FF33' : '#eee')};
+
 `;
 
-// Texto dentro de la burbuja
 const BubbleText = styled.Text`
-  color: #333;
+  color: #ffffff;
   font-size: 16px;
 `;
 
-// Fila inferior con TextInput y botón de envío
+const Container = styled.View`
+  flex: 1;
+  background-color: #fff;
+  padding: 16px;
+`;
+
+const HeaderButton = styled.TouchableOpacity`
+  padding: 22px;
+`;
+
+const HeaderText = styled.Text`
+  color: white;
+  font-size: 20px;
+`;
+
 const InputRow = styled.View`
   flex-direction: row;
   padding: 8px;
@@ -227,7 +476,6 @@ const InputRow = styled.View`
   align-items: center;
 `;
 
-// Campo de texto para escribir mensaje
 const Input = styled.TextInput`
   flex: 1;
   background-color: #f6f6f6;
@@ -236,20 +484,179 @@ const Input = styled.TextInput`
   margin-right: 8px;
 `;
 
-// Botón de enviar mensaje
+const TextInputStyled = styled.TextInput`
+  background-color: #f6f6f6;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 6px;
+  font-size: 16px;
+`;
+
+const TextInputStyledDescription = styled(TextInputStyled).attrs(() => ({
+  multiline: true,
+  numberOfLines: 3,
+}))``;
+
 const SendButton = styled.TouchableOpacity`
   background-color: #0A84FF;
   padding: 10px 16px;
   border-radius: 20px;
 `;
 
-// Texto del botón de envío\dd
 const SendText = styled.Text`
   color: white;
   font-weight: bold;
 `;
 
-const HeaderText = styled.Text`
+const AddButton = styled.TouchableOpacity`
+  background-color: #0A84FF;
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  justify-content: center;
+  align-items: center;
+  margin: 16px auto;
+  shadow-color: #000;
+  shadow-opacity: 0.3;
+  shadow-radius: 5px;
+  elevation: 5;
+`;
+
+const AddButtonText = styled.Text`
   color: white;
+  font-size: 36px;
+  line-height: 36px;
+  font-weight: bold;
+`;
+
+const PickerStyled = styled(RNPicker).attrs(() => ({
+  mode: 'dropdown',
+}))`
+  margin-top: 6px;
+  background-color: #f6f6f6;
+  border-radius: 8px;
+`;
+
+const ModalBackground = styled.View`
+  flex: 1;
+  background-color: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+`;
+
+const ModalContainer = styled.View`
+  background: white;
+  width: 90%;
+  border-radius: 12px;
+  padding: 20px;
+  elevation: 10;
+`;
+
+const ModalTitle = styled.Text`
   font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 12px;
+`;
+
+const InputLabel = styled.Text`
+  margin-top: 12px;
+  font-weight: 600;
+  color: #333;
+`;
+
+const ModalButtonsRow = styled.View`
+  flex-direction: row;
+  justify-content: space-between;
+  margin-top: 20px;
+`;
+
+const ModalButtonCancel = styled.Pressable`
+  background-color: #aaa;
+  padding: 10px 20px;
+  border-radius: 8px;
+`;
+
+const ModalButtonSave = styled.Pressable`
+  background-color: #0A84FF;
+  padding: 10px 20px;
+  border-radius: 8px;
+`;
+
+const ModalButtonText = styled.Text`
+  color: white;
+  font-weight: bold;
+  text-align: center;
+`;
+
+const TaskName = styled.Text`
+  font-weight: bold;
+  font-size: 16px;
+`;
+
+const TaskType = styled.Text`
+  font-style: italic;
+  color: #0A84FF;
+`;
+
+const TaskDesc = styled.Text`
+  margin-top: 4px;
+  color: #333;
+`;
+
+const TaskHours = styled.Text`
+  margin-top: 4px;
+  font-weight: 600;
+  color: #444;
+`;
+
+// Estilos para el chat
+
+const ChatOpenButton = styled.TouchableOpacity`
+  background-color: #0A84FF;
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  bottom: 30px;
+  right: 20px;
+  shadow-color: #000;
+  shadow-opacity: 0.3;
+  shadow-radius: 5px;
+  elevation: 5;
+`;
+
+const ChatOpenButtonText = styled.Text`
+  color: white;
+  font-size: 28px;
+`;
+
+const ChatContainer = styled.View`
+  flex: 1;
+  background-color: white;
+  padding: 12px;
+`;
+
+const ChatHeader = styled.View`
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom-width: 1px;
+  border-color: #ddd;
+`;
+
+const ChatTitle = styled.Text`
+  font-size: 20px;
+  font-weight: bold;
+`;
+
+const CloseButton = styled.TouchableOpacity`
+  padding: 6px 12px;
+`;
+
+const CloseButtonText = styled.Text`
+  font-size: 24px;
+  color: #888;
 `;
