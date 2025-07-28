@@ -1,4 +1,4 @@
-// utils/googleAuth.ts
+// autenticacion de google para google calendar que sera luego del semestral
 import React from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
