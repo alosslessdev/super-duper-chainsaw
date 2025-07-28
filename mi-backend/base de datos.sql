@@ -19,6 +19,7 @@ CREATE TABLE tarea (
   usuario INT,
   tiempo_estimado VARCHAR(50),
   horas INT,
+  hecho boolean
   FOREIGN KEY (usuario) REFERENCES usuario(pk)
 );
 
