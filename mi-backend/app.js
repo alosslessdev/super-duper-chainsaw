@@ -203,11 +203,11 @@ app.post('/tareas', requireLogin, async (req, res) => {
 // Actualizar tarea
 app.put('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
-  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
-  const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?
+  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, hecho } = req.body;
+  const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?, hecho = ?
                WHERE pk = ?`;
   try {
-    const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, id]);
+    const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, id, hecho]);
     if (resultados.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
     res.json({ mensaje: 'Tarea actualizada' });
   } catch (error) {
