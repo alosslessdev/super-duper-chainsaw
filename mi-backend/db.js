@@ -14,7 +14,8 @@ const conexion = mysql.createConnection({
   user,
   password,
   database,
-  port
+  port, 
+  connectTimeout : 60000
 });
 
 conexion.connect(error => {

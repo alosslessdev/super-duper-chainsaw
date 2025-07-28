@@ -10,15 +10,17 @@ import swaggerUi from 'swagger-ui-express';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
 import swaggerDocument from './swagger.json' with { type: "json" };
+import https from 'https';
+import fs  from 'fs';
 // Prompt for API key at startup
 const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEchoBack: true }) || '';
 const secretKeyIdStore = readlineSync.question('Ingrese el Key ID para AWS S3: ', { hideEchoBack: true }) || '';
 const secretKeyStore = readlineSync.question('Ingrese el secret key para AWS S3: ', { hideEchoBack: true }) || '';
 const app = express(); //declaracion de aplicacion
-const port = 3000; //puerto de red
+//const hostAndPort = 3000; //puerto de red
 
 const isProd = process.argv.includes('--prod');
-const host = isProd ? '0.0.0.0' : 'localhost';
+const hostAndPort = isProd ? '0.0.0.0:8080' : 'localhost:3000';
 
 import cors from 'cors';
 app.use(cors({
@@ -26,6 +28,11 @@ app.use(cors({
   credentials: true
 }));
 
+
+const cts = {
+    cert: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/fullchain.pem"),
+    key: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/privkey.pem")
+}
 
 
 //const express = require('express');
@@ -348,6 +355,8 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
 
 
-app.listen(port, host, () => {
-  console.log(`Servidor corriendo en http://${host}:${port}`);
+app.listen(hostAndPort, () => {
+  console.log(`Servidor corriendo en http://${hostAndPort}`);
 });
+
+  https.createServer(cts, app).listen(443);
