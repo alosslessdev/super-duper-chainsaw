@@ -17,7 +17,13 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.francisco278herrera.mytodoexpo"
+      "package": "com.growin.growin",
+      "config": {
+        "googleSignIn": {
+          "apiKey": "YOUR_WEB_CLIENT_ID_FROM_GOOGLE_CLOUD_CONSOLE",
+          "androidClientId": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -34,7 +40,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -43,7 +50,8 @@
       "router": {},
       "eas": {
         "projectId": "8e255604-a090-40c0-a636-5f2bf831ab85"
-      }
+      },
+      "googleWebClientId": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com"
     }
   }
 }
