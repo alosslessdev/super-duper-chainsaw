@@ -1,14 +1,19 @@
+
 import { FontAwesome } from '@expo/vector-icons';
+
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Modal } from 'react-native';
 import styled from 'styled-components/native';
-import { colors } from './styles/colors';
+import { colors } from './styles/colors'; // Assuming this path is correct
+import { setAwsKeys } from './awsKeyStore'; // Adjust path as needed
+import { useGoogleAuth } from './googleAuthCalendar'; // Import the Google auth hook
 
 const LoginScreen = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [showRegisterModal, setShowRegisterModal] = useState(false);
 
   const handleSocialRegister = (platform: string) => {
@@ -33,10 +38,12 @@ const LoginScreen = () => {
       ]);
     } else {
       Alert.alert('Error', 'Por favor ingresa un correo válido y contraseña correcta');
+ 
     }
   };
 
   return (
+
     <>
       <Container>
         <Logo>Growin</Logo>
@@ -105,6 +112,11 @@ const LoginScreen = () => {
         </ModalOverlay>
       </Modal>
     </>
+
+
+      
+
+      
   );
 };
 
@@ -169,6 +181,7 @@ const LinkText = styled.Text`
   text-decoration: underline;
 `;
 
+
 // Modal styles
 const ModalOverlay = styled.View`
   flex: 1;
@@ -215,4 +228,5 @@ const CancelText = styled.Text`
   color: ${colors.primary};
   text-decoration: underline;
   font-size: 16px;
+
 `;

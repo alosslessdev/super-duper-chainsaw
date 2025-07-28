@@ -15,6 +15,7 @@ import { Picker as RNPicker } from '@react-native-picker/picker';
 import AnalogClock from '../(app)/analogClock';
 import { colors } from '../styles/colors';
 
+
 const taskTypes = ['ocio', 'importante', 'liviana', 'descanso'];
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
 const today = new Date();
@@ -33,6 +34,7 @@ type Task = {
   hours: number; // duración en horas
   startHour: number; // hora de inicio 0-23
 };
+
 
 type Msg = {
   id: string;
@@ -67,8 +69,10 @@ export default function Index() {
   // Para mostrar u ocultar chat
   const [chatVisible, setChatVisible] = useState(false);
 
+
   // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = () => {
+
     if (!input.trim()) return;
 
     const userMsg: Msg = {
@@ -103,7 +107,59 @@ export default function Index() {
         },
       ]);
     }, 800);
+  }; */
+
+
+
+
+
+
+
+ const uploadFile = async () => {
+    let fileNamePDF, PDFfile;
+    const result = await DocumentPicker.getDocumentAsync({});
+    const { secretKeyId, secretKey } = getAwsKeys();
+
+    if (result.assets) {
+
+        const s3Client = new S3Client({
+        region: "us-east-1", // set your region
+        credentials: {
+          accessKeyId: secretKeyId ?? "",
+          secretAccessKey: secretKey ?? "",
+        },
+      });
+
+
+      PDFfile = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
+
+
+
+      try{
+    
+      const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: "save-pdf-test",
+            Key: fileNamePDF,
+            Body: PDFfile,
+          }),
+        );
+
+      if (response.ETag){
+        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}` //change to random filename
+      }
+
+      }catch (err){
+        console.log("error while uploading")
+      }
+
+    }
+
+    
+
   };
+
 
   // Función para abrir modal agregar o editar tarea
   const openTaskModal = (task?: Task) => {
@@ -385,6 +441,7 @@ export default function Index() {
             contentContainerStyle={{ paddingBottom: 20 }}
           />
 
+
           {/* Botón flotante para abrir chat */}
           {!chatVisible && (
             <ChatOpenButton onPress={() => setChatVisible(true)}>
@@ -432,6 +489,7 @@ export default function Index() {
               </InputRow>
             </ChatContainer>
           </Modal>
+
         </Container>
       </KeyboardAvoidingView>
     </>
@@ -502,6 +560,7 @@ const SendButton = styled.TouchableOpacity`
   padding: 10px 16px;
   border-radius: 20px;
 `;
+
 
 const SendText = styled.Text`
   color: white;
@@ -660,3 +719,11 @@ const CloseButtonText = styled.Text`
   font-size: 24px;
   color: #888;
 `;
+
+
+// para subir a aws s3
+
+
+ 
+
+ 

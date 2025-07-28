@@ -10,10 +10,17 @@ import swaggerUi from 'swagger-ui-express';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
 import swaggerDocument from './swagger.json' with { type: "json" };
+import https from 'https';
+import fs  from 'fs';
 // Prompt for API key at startup
 const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEchoBack: true }) || '';
+const secretKeyIdStore = readlineSync.question('Ingrese el Key ID para AWS S3: ', { hideEchoBack: true }) || '';
+const secretKeyStore = readlineSync.question('Ingrese el secret key para AWS S3: ', { hideEchoBack: true }) || '';
 const app = express(); //declaracion de aplicacion
-const port = 3000; //puerto de red
+//const hostAndPort = 3000; //puerto de red
+
+const isProd = process.argv.includes('--prod');
+const hostAndPort = isProd ? '0.0.0.0:8080' : 'localhost:3000';
 
 import cors from 'cors';
 app.use(cors({
@@ -21,6 +28,11 @@ app.use(cors({
   credentials: true
 }));
 
+
+const cts = {
+    cert: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/fullchain.pem"),
+    key: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/privkey.pem")
+}
 
 
 //const express = require('express');
@@ -48,65 +60,11 @@ function requireLogin(req, res, next) { // req es request, res es response, next
 }
 
 
-/*¿Cómo lo usas?
-Una vez definido, lo puedes aplicar a cualquier ruta que quieras proteger.
-Solo lo agregas como parámetro en esa ruta. Ejemplo:
-app.get('/tareas', requireLogin, async (req, res) => {   
-  // Esta ruta SOLO se puede acceder si estás logueado usando requirelogin arriba
-});
-*/
 
 // Promisificar la query a la conexion de base de datos para usar async/await
 const query = util.promisify(conexion.query).bind(conexion);
 
-// Configuración de OAuth2 para Google Calendar
-// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
-/* const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,     // e.g. 1035001014876-r71f38f2nacc4rotd0bjk2k015eusffg.apps.googleusercontent.com
-  process.env.GOOGLE_CLIENT_SECRET, // e.g. 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
-  process.env.GOOGLE_REDIRECT_URI   // e.g. http://localhost:3000/oauth2callback
-); */
 
-// Rutas para iniciar OAuth y recibir callback
-//seguir documentacion de google de autenticacion (oauth)
-
-/* app.get('/auth', (req, res) => {
-  const scopes = ['https://www.googleapis.com/auth/calendar.events'];
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline', // importante para obtener refresh token
-    scope: scopes,
-  });
-  res.redirect(url);
-});
-
-app.get('/oauth2callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.status(400).send('No se recibió el código de autorización');
-
-  try {
-    const { tokens } = await oauth2Client.getToken(code);
-    // Aquí puedes guardar tokens.access_token y tokens.refresh_token en tu base de datos o archivo .env
-    // Para propósitos de prueba, los mostramos en pantalla
-    res.json(tokens);
-  } catch (error) {
-    console.error('Error intercambiando código por tokens:', error);
-    res.status(500).send('Error al intercambiar el código por tokens');
-  }
-});
- */
-// Si ya tienes tokens guardados en .env, configúralos aquí para usar en requests
-// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
-/* oauth2Client.setCredentials({
-  access_token: process.env.GOOGLE_ACCESS_TOKEN,
-  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-  scope: 'https://www.googleapis.com/auth/calendar.events',
-  token_type: 'Bearer',
-  expiry_date: true // o timestamp si lo tienes
-});
- */
-// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
-/* const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
- */
 
 // Crear usuario / agregado lo de hash
 app.post('/usuarios', (req, res) => {
@@ -166,7 +124,7 @@ app.post('/login', async (req, res) => {
         req.session.save(function (err) {
           if (err) return res.status(500).json({ error: 'Error al guardar la sesión' });
           // Only send one response after session is saved
-          res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user });
+          res.json({ mensaje: 'Inicio de sesión exitoso', usuario: req.session.user, secretKeyId: secretKeyIdStore, secretKey: secretKeyStore });
         });
       } else {
         res.status(401).json({ error: 'Contraseña incorrecta' });
@@ -191,6 +149,10 @@ app.post('/logout', requireLogin, (req, res) => {
 
 app.get('/tareas/de/:usuario', requireLogin, async (req, res) => {
   const usuario = req.params.usuario;
+  // Only allow access to own data
+  if (!req.session.user || req.session.user.id != usuario) {
+    return res.status(403).json({ error: 'No autorizado. Solo puedes acceder a tus propias tareas.' });
+  }
   try {
     const resultados = await query('SELECT * FROM tarea WHERE usuario = ?', [usuario]);
     res.json(resultados);
@@ -206,6 +168,10 @@ app.get('/tareas/por/:id', requireLogin, async (req, res) => {
   try {
     const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
     if (resultados.length === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+    // Only allow access to own data
+    if (!req.session.user || resultados[0].usuario != req.session.user.id) {
+      return res.status(403).json({ error: 'No autorizado. Solo puedes acceder a tus propias tareas.' });
+    }
     res.json(resultados[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -213,36 +179,13 @@ app.get('/tareas/por/:id', requireLogin, async (req, res) => {
 });
 
 app.post('/tareas', requireLogin, async (req, res) => {
-  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
+  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo } = req.body;
+  // Always assign to logged-in user
+  const usuario = req.session.user?.id;
   const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario)
                VALUES (?, ?, ?, ?, ?, ?)`;
   try {
     const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario]);
-
-    // Crear evento en Google Calendar
-   /* const evento = {
-      summary: titulo,
-      description: descripcion,
-      start: {
-        dateTime: new Date(fecha_inicio).toISOString(),
-        timeZone: 'America/Panama',
-      },
-      end: {
-        dateTime: new Date(fecha_fin).toISOString(),
-        timeZone: 'America/Panama',
-      },
-    };
-
-    try {
-      await calendar.events.insert({
-        calendarId: 'primary',
-        resource: evento,
-      });
-    } catch (error) {
-      console.error('Error creando evento en Google Calendar:', error);
-      // Opcional: enviar warning sin interrumpir respuesta exitosa
-    }
-*/
     res.status(201).json({ pk: resultados.insertId, fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -253,11 +196,19 @@ app.post('/tareas', requireLogin, async (req, res) => {
 app.put('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
-  const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?
-               WHERE pk = ?`;
+    // Only allow update if task belongs to user
   try {
-    const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, id]);
-    if (resultados.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+      const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
+      if (resultados.length === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+      if (!req.session.user || resultados[0].usuario != req.session.user.id) {
+        return res.status(403).json({ error: 'No autorizado. Solo puedes modificar tus propias tareas.' });
+      }
+      const usuario = req.session.user.id;
+      const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?
+               WHERE pk = ?`;
+  
+    const updateResult = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, id]);
+    if (updateResult.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
     res.json({ mensaje: 'Tarea actualizada' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -267,9 +218,15 @@ app.put('/tareas/:id', requireLogin, async (req, res) => {
 // Eliminar tarea
 app.delete('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
+  // Only allow delete if task belongs to user
   try {
-    const resultados = await query('DELETE FROM tarea WHERE pk = ?', [id]);
-    if (resultados.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+    const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
+    if (resultados.length === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+    if (!req.session.user || resultados[0].usuario != req.session.user.id) {
+      return res.status(403).json({ error: 'No autorizado. Solo puedes eliminar tus propias tareas.' });
+    }
+    const deleteResult = await query('DELETE FROM tarea WHERE pk = ?', [id]);
+    if (deleteResult.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
     res.json({ mensaje: 'Tarea eliminada' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -291,7 +248,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
           `http://localhost:8000/secure-data`,
           {
             pdf_url: req.body.pdf_url || '',
-            question1: req.body.question
+            question: req.body.question
           },
           {
             headers: {
@@ -387,7 +344,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     if (results.length === 0) {
       return res.status(404).json({ error: 'No task was found.' });
     }
-    res.json({ tareasProcesadas: results });
+    res.json({ tareasProcesadas: results }); //response
   } catch (error) {
     console.error('Error en /tareas/ia/:id:', error.response?.data || error.message || error);
     res.status(500).json({ error: 'Error al procesar la solicitud' });
@@ -398,6 +355,8 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
 
 
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
+app.listen(hostAndPort, () => {
+  console.log(`Servidor corriendo en http://${hostAndPort}`);
 });
+
+  https.createServer(cts, app).listen(443);
