@@ -1,9 +1,9 @@
-// app/login.tsx
-import React, { useState } from 'react';
-import { Alert } from 'react-native';
 
-import { ActivityIndicator } from 'react-native'; // For loading indicator
+import { FontAwesome } from '@expo/vector-icons';
+
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Modal } from 'react-native';
 import styled from 'styled-components/native';
 import { colors } from './styles/colors'; // Assuming this path is correct
 import { setAwsKeys } from './awsKeyStore'; // Adjust path as needed
@@ -13,149 +13,117 @@ const LoginScreen = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // State for loading indicator
- 
-  // Initialize the Google authentication hook
-  const { signInWithGoogle, request } = useGoogleAuth();
 
-  /**
-   * Displays a custom alert message to the user.
-   * @param title The title of the alert.
-   * @param message The message content of the alert.
-   * @param onConfirmAction Optional callback to execute when the confirm button is pressed.
-   */
-  
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  /**
-   * Handles the traditional email/password login process.
-   */
-  const handleLogin = async () => {
-    setIsLoading(true); // Show loading indicator
-    try {
-      const response = await fetch('http://localhost:3000/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // for session cookies
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        // Get session cookie from response headers
-        const cookie = response.headers.get('set-cookie') || '';
-        setAwsKeys(data.secretKeyId, data.secretKey, cookie);
-
-        Alert.alert('Bienvenido', 'Has ingresado correctamente', [
-          {
-            text: 'Aceptar',
-            onPress: () => router.replace('/(app)'),
-          },
-        ]);
-
-      } else {
-        Alert.alert('Error', data.error || 'Por favor ingresa un correo válido y contraseña correcta');
-      }
-    } catch (err) {
-      Alert.alert('Error', 'No se pudo conectar al servidor');
-    } 
+  const handleSocialRegister = (platform: string) => {
+    Alert.alert('Registro', `Registrarse con ${platform}`);
+    // Aquí puedes agregar lógica real de autenticación social
+    setShowRegisterModal(false);
   };
 
-  /* if (email === 'admin' && password === '1234') {
-    Alert.alert('Bienvenido', 'Has ingresado correctamente', [
-      {
-        text: 'Aceptar',
-        onPress: () => router.replace('/(app)'),
-      },
-    ]);
-  } else {
-    Alert.alert('Error', 'Por favor ingresa un correo válido y contraseña correcta');
-  }
-}; */
+  // ¡Importante! Aquí redirigimos a la pantalla formulario con ruta en minúscula
+  const handleFormRegister = () => {
+    setShowRegisterModal(false);
+    router.push('/Formulario'); // nombre en minúscula porque el archivo será formulario.tsx
+  };
 
-
-  /**
-   * Handles the Google login process.
-   */
-  const handleGoogleLogin = async () => {
-    setIsLoading(true); // Show loading indicator
-    const success = await signInWithGoogle(); // Call the Google auth function
-    setIsLoading(false); // Hide loading indicator
-
-    if (success) {
-        Alert.alert('Por favor ingresa un correo válido y contraseña correcta');
-        // You might want to navigate to a different screen or perform other actions
-        // after Google login, e.g., fetch user data or prompt for calendar access setup.
-        router.replace('/(app)'); // Example: navigate to app home
-      
+  const handleLogin = () => {
+    if (email === 'admin' && password === '1234') {
+      Alert.alert('Bienvenido', 'Has ingresado correctamente', [
+        {
+          text: 'Aceptar',
+          onPress: () => router.replace('/(app)'),
+        },
+      ]);
     } else {
-        Alert.alert('Por favor ingresa un correo válido y contraseña correcta');
+      Alert.alert('Error', 'Por favor ingresa un correo válido y contraseña correcta');
+ 
     }
   };
 
   return (
-    <Container>
-      
-      <Logo>Growin</Logo>
-      <Title>Inicia sesión para tener seguimiento de tus rutinas</Title>
 
-      <Label>Correo electrónico</Label>
-      <Input
-        placeholder="admin"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoCorrect={false}
-        accessibilityLabel="Campo correo electrónico"
-      />
+    <>
+      <Container>
+        <Logo>Growin</Logo>
+        <Title>Inicia sesión para tener seguimiento de tus rutinas</Title>
 
-      <Label>Contraseña</Label>
-      <Input
-        placeholder="1234"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        accessibilityLabel="Campo contraseña"
-      />
+        <Label>Correo electrónico</Label>
+        <Input
+          placeholder="admin"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
 
-      <Button onPress={handleLogin} accessibilityRole="button" disabled={isLoading}>
-        {isLoading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : (
+        <Label>Contraseña</Label>
+        <Input
+          placeholder="1234"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+
+        <Button onPress={handleLogin}>
           <ButtonText>Ingresar</ButtonText>
-        )}
-      </Button>
+        </Button>
 
-      {/* Google Login Button */}
-      <GoogleButton
-        onPress={handleGoogleLogin}
-        accessibilityRole="button"
-        disabled={!request || isLoading} // Disable if request not ready or loading
-      >
-        {isLoading ? (
-          <ActivityIndicator color={colors.white} />
-        ) : (
-          <>
-            <GoogleIcon source={{ uri: 'https://img.icons8.com/color/48/000000/google-logo.png' }} />
-            <GoogleButtonText>Ingresar con Google</GoogleButtonText>
-          </>
-        )}
-      </GoogleButton>
+        <LinkTouchable onPress={() => Alert.alert('Recuperar contraseña', 'Funcionalidad pendiente')}>
+          <LinkText>¿Olvidaste tu contraseña?</LinkText>
+        </LinkTouchable>
+
+        <LinkTouchable onPress={() => setShowRegisterModal(true)}>
+          <LinkText>Registrarme</LinkText>
+        </LinkTouchable>
+      </Container>
+
+      {/* Modal de Registro */}
+      <Modal visible={showRegisterModal} transparent animationType="slide">
+        <ModalOverlay>
+          <ModalContent>
+            <ModalTitle>Registrarse con:</ModalTitle>
+
+            <SocialButton onPress={() => handleSocialRegister('Gmail')}>
+              <FontAwesome name="google" size={20} color="white" />
+              <SocialText>Gmail</SocialText>
+            </SocialButton>
+
+            <SocialButton onPress={() => handleSocialRegister('Facebook')}>
+              <FontAwesome name="facebook" size={20} color="white" />
+              <SocialText>Facebook</SocialText>
+            </SocialButton>
+
+            <SocialButton onPress={() => handleSocialRegister('X')}>
+              <FontAwesome name="twitter" size={20} color="white" />
+              <SocialText>X</SocialText>
+            </SocialButton>
+
+            <SocialButton onPress={handleFormRegister}>
+              <FontAwesome name="user-plus" size={20} color="white" />
+              <SocialText>Registro con formulario</SocialText>
+            </SocialButton>
+
+            <CancelButton onPress={() => setShowRegisterModal(false)}>
+              <CancelText>Cancelar</CancelText>
+            </CancelButton>
+          </ModalContent>
+        </ModalOverlay>
+      </Modal>
+    </>
 
 
-      <LinkTouchable>
-        <LinkText>¿Olvidaste tu contraseña?</LinkText>
-      </LinkTouchable>
+      
 
-      <LinkTouchable>
-        <LinkText>Registrarme</LinkText>
-      </LinkTouchable>
-    </Container>
+      
   );
 };
 
 export default LoginScreen;
 
-// Estilos con styled-components
+// ---------------- STYLES ----------------
+
 const Container = styled.View`
   flex: 1;
   background-color: ${colors.primary};
@@ -213,24 +181,52 @@ const LinkText = styled.Text`
   text-decoration: underline;
 `;
 
-// New styles for Google Button
-const GoogleButton = styled.TouchableOpacity`
-  background-color: #4285f4; /* Google blue */
-  padding: 15px;
-  border-radius: 10px;
+
+// Modal styles
+const ModalOverlay = styled.View`
+  flex: 1;
+  background-color: rgba(0, 0, 0, 0.5);
+  justify-content: center;
   align-items: center;
-  margin-vertical: 10px;
-  flex-direction: row; /* Align icon and text horizontally */
-  justify-content: center; /* Center content */
 `;
 
-const GoogleButtonText = styled.Text`
-  color: ${colors.white};
+const ModalContent = styled.View`
+  width: 80%;
+  background-color: white;
+  border-radius: 16px;
+  padding: 20px;
+  align-items: center;
+`;
+
+const ModalTitle = styled.Text`
+  font-size: 18px;
   font-weight: bold;
-  margin-left: 10px; /* Space between icon and text */
+  margin-bottom: 16px;
 `;
 
-const GoogleIcon = styled.Image`
-  width: 24px;
-  height: 24px;
+const SocialButton = styled.TouchableOpacity`
+  flex-direction: row;
+  align-items: center;
+  background-color: ${colors.primary};
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-vertical: 6px;
+  width: 100%;
+`;
+
+const SocialText = styled.Text`
+  color: white;
+  margin-left: 12px;
+  font-size: 16px;
+`;
+
+const CancelButton = styled.TouchableOpacity`
+  margin-top: 12px;
+`;
+
+const CancelText = styled.Text`
+  color: ${colors.primary};
+  text-decoration: underline;
+  font-size: 16px;
+
 `;

@@ -13,6 +13,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",
     "@expo/vector-icons": "^14.1.0",
+    "@react-native-picker/picker": "^2.11.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/drawer": "^7.3.9",
     "@react-navigation/elements": "^2.3.8",
@@ -37,8 +38,10 @@
     "react-native": "0.79.5",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.17.4",
+    "react-native-responsive-fontsize": "^0.5.1",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
+    "react-native-svg": "15.11.2",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
     "styled-components": "^6.1.19",
@@ -48,6 +51,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
+    "@types/styled-components-react-native": "^5.2.5",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
     "@react-native-community/cli": "latest",
