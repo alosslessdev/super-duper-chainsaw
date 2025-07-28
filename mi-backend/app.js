@@ -53,65 +53,11 @@ function requireLogin(req, res, next) { // req es request, res es response, next
 }
 
 
-/*¿Cómo lo usas?
-Una vez definido, lo puedes aplicar a cualquier ruta que quieras proteger.
-Solo lo agregas como parámetro en esa ruta. Ejemplo:
-app.get('/tareas', requireLogin, async (req, res) => {   
-  // Esta ruta SOLO se puede acceder si estás logueado usando requirelogin arriba
-});
-*/
 
 // Promisificar la query a la conexion de base de datos para usar async/await
 const query = util.promisify(conexion.query).bind(conexion);
 
-// Configuración de OAuth2 para Google Calendar
-// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
-/* const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,     // e.g. 1035001014876-r71f38f2nacc4rotd0bjk2k015eusffg.apps.googleusercontent.com
-  process.env.GOOGLE_CLIENT_SECRET, // e.g. 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
-  process.env.GOOGLE_REDIRECT_URI   // e.g. http://localhost:3000/oauth2callback
-); */
 
-// Rutas para iniciar OAuth y recibir callback
-//seguir documentacion de google de autenticacion (oauth)
-
-/* app.get('/auth', (req, res) => {
-  const scopes = ['https://www.googleapis.com/auth/calendar.events'];
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline', // importante para obtener refresh token
-    scope: scopes,
-  });
-  res.redirect(url);
-});
-
-app.get('/oauth2callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.status(400).send('No se recibió el código de autorización');
-
-  try {
-    const { tokens } = await oauth2Client.getToken(code);
-    // Aquí puedes guardar tokens.access_token y tokens.refresh_token en tu base de datos o archivo .env
-    // Para propósitos de prueba, los mostramos en pantalla
-    res.json(tokens);
-  } catch (error) {
-    console.error('Error intercambiando código por tokens:', error);
-    res.status(500).send('Error al intercambiar el código por tokens');
-  }
-});
- */
-// Si ya tienes tokens guardados en .env, configúralos aquí para usar en requests
-// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
-/* oauth2Client.setCredentials({
-  access_token: process.env.GOOGLE_ACCESS_TOKEN,
-  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-  scope: 'https://www.googleapis.com/auth/calendar.events',
-  token_type: 'Bearer',
-  expiry_date: true // o timestamp si lo tienes
-});
- */
-// Roto: No sigue: https://developers.google.com/workspace/calendar/api/quickstart/nodejs
-/* const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
- */
 
 // Crear usuario / agregado lo de hash
 app.post('/usuarios', (req, res) => {
