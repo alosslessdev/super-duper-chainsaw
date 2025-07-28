@@ -14,11 +14,7 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false); // State for loading indicator
-  const [alertVisible, setAlertVisible] = useState(false); // State for custom alert visibility
-  const [alertTitle, setAlertTitle] = useState(''); // State for custom alert title
-  const [alertMessage, setAlertMessage] = useState(''); // State for custom alert message
-  const [alertOnConfirm, setAlertOnConfirm] = useState<(() => void) | undefined>(undefined); // State for custom alert confirm action
-
+ 
   // Initialize the Google authentication hook
   const { signInWithGoogle, request } = useGoogleAuth();
 
@@ -28,20 +24,7 @@ const LoginScreen = () => {
    * @param message The message content of the alert.
    * @param onConfirmAction Optional callback to execute when the confirm button is pressed.
    */
-  const showAlert = (title: string, message: string, onConfirmAction?: () => void) => {
-    setAlertTitle(title);
-    setAlertMessage(message);
-    setAlertOnConfirm(() => { // Use a function to set the state correctly
-      const action = () => {
-        setAlertVisible(false); // Always hide alert on confirm
-        if (onConfirmAction) {
-          onConfirmAction(); // Execute the provided action
-        }
-      };
-      return action;
-    });
-    setAlertVisible(true);
-  };
+  
 
   /**
    * Handles the traditional email/password login process.
@@ -99,13 +82,13 @@ const LoginScreen = () => {
     setIsLoading(false); // Hide loading indicator
 
     if (success) {
-      showAlert('Bienvenido', 'Has ingresado con Google correctamente.', () => {
+        Alert.alert('Por favor ingresa un correo válido y contraseña correcta');
         // You might want to navigate to a different screen or perform other actions
         // after Google login, e.g., fetch user data or prompt for calendar access setup.
         router.replace('/(app)'); // Example: navigate to app home
-      });
+      
     } else {
-      showAlert('Error', 'No se pudo iniciar sesión con Google. Por favor, inténtalo de nuevo.');
+        Alert.alert('Por favor ingresa un correo válido y contraseña correcta');
     }
   };
 
