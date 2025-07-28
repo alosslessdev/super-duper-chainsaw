@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import styled from 'styled-components/native';
 import { colors } from './styles/colors'; // Assuming this path is correct
 import { setAwsKeys } from './awsKeyStore'; // Adjust path as needed
-import { useGoogleAuth } from './googleAuth'; // Import the Google auth hook
+import { useGoogleAuth } from './googleAuthCalendar'; // Import the Google auth hook
 
 const LoginScreen = () => {
   const router = useRouter();

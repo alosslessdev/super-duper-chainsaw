@@ -10,15 +10,17 @@ import swaggerUi from 'swagger-ui-express';
 import util from 'util';
 import conexion from './db.js'; // Importa la conexión
 import swaggerDocument from './swagger.json' with { type: "json" };
+import https from 'https';
+import fs  from 'fs';
 // Prompt for API key at startup
 const apiKey = readlineSync.question('Ingrese el API key para la IA: ', { hideEchoBack: true }) || '';
 const secretKeyIdStore = readlineSync.question('Ingrese el Key ID para AWS S3: ', { hideEchoBack: true }) || '';
 const secretKeyStore = readlineSync.question('Ingrese el secret key para AWS S3: ', { hideEchoBack: true }) || '';
 const app = express(); //declaracion de aplicacion
-const port = 3000; //puerto de red
+//const hostAndPort = 3000; //puerto de red
 
 const isProd = process.argv.includes('--prod');
-const host = isProd ? '0.0.0.0' : 'localhost';
+const hostAndPort = isProd ? '0.0.0.0:8080' : 'localhost:3000';
 
 import cors from 'cors';
 app.use(cors({
@@ -26,6 +28,11 @@ app.use(cors({
   credentials: true
 }));
 
+
+const cts = {
+    cert: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/fullchain.pem"),
+    key: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/privkey.pem")
+}
 
 
 //const express = require('express');
@@ -142,6 +149,10 @@ app.post('/logout', requireLogin, (req, res) => {
 
 app.get('/tareas/de/:usuario', requireLogin, async (req, res) => {
   const usuario = req.params.usuario;
+  // Only allow access to own data
+  if (!req.session.user || req.session.user.id != usuario) {
+    return res.status(403).json({ error: 'No autorizado. Solo puedes acceder a tus propias tareas.' });
+  }
   try {
     const resultados = await query('SELECT * FROM tarea WHERE usuario = ?', [usuario]);
     res.json(resultados);
@@ -157,6 +168,10 @@ app.get('/tareas/por/:id', requireLogin, async (req, res) => {
   try {
     const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
     if (resultados.length === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+    // Only allow access to own data
+    if (!req.session.user || resultados[0].usuario != req.session.user.id) {
+      return res.status(403).json({ error: 'No autorizado. Solo puedes acceder a tus propias tareas.' });
+    }
     res.json(resultados[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -164,36 +179,13 @@ app.get('/tareas/por/:id', requireLogin, async (req, res) => {
 });
 
 app.post('/tareas', requireLogin, async (req, res) => {
-  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
+  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo } = req.body;
+  // Always assign to logged-in user
+  const usuario = req.session.user?.id;
   const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario)
                VALUES (?, ?, ?, ?, ?, ?)`;
   try {
     const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario]);
-
-    // Crear evento en Google Calendar
-   /* const evento = {
-      summary: titulo,
-      description: descripcion,
-      start: {
-        dateTime: new Date(fecha_inicio).toISOString(),
-        timeZone: 'America/Panama',
-      },
-      end: {
-        dateTime: new Date(fecha_fin).toISOString(),
-        timeZone: 'America/Panama',
-      },
-    };
-
-    try {
-      await calendar.events.insert({
-        calendarId: 'primary',
-        resource: evento,
-      });
-    } catch (error) {
-      console.error('Error creando evento en Google Calendar:', error);
-      // Opcional: enviar warning sin interrumpir respuesta exitosa
-    }
-*/
     res.status(201).json({ pk: resultados.insertId, fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -203,12 +195,20 @@ app.post('/tareas', requireLogin, async (req, res) => {
 // Actualizar tarea
 app.put('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
-  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, hecho } = req.body;
-  const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?, hecho = ?
-               WHERE pk = ?`;
+  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario } = req.body;
+    // Only allow update if task belongs to user
   try {
-    const resultados = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, id, hecho]);
-    if (resultados.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+      const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
+      if (resultados.length === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+      if (!req.session.user || resultados[0].usuario != req.session.user.id) {
+        return res.status(403).json({ error: 'No autorizado. Solo puedes modificar tus propias tareas.' });
+      }
+      const usuario = req.session.user.id;
+      const sql = `UPDATE tarea SET fecha_inicio = ?, fecha_fin = ?, descripcion = ?, prioridad = ?, titulo = ?, usuario = ?
+               WHERE pk = ?`;
+  
+    const updateResult = await query(sql, [fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, id]);
+    if (updateResult.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
     res.json({ mensaje: 'Tarea actualizada' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -218,9 +218,15 @@ app.put('/tareas/:id', requireLogin, async (req, res) => {
 // Eliminar tarea
 app.delete('/tareas/:id', requireLogin, async (req, res) => {
   const id = req.params.id;
+  // Only allow delete if task belongs to user
   try {
-    const resultados = await query('DELETE FROM tarea WHERE pk = ?', [id]);
-    if (resultados.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+    const resultados = await query('SELECT * FROM tarea WHERE pk = ?', [id]);
+    if (resultados.length === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
+    if (!req.session.user || resultados[0].usuario != req.session.user.id) {
+      return res.status(403).json({ error: 'No autorizado. Solo puedes eliminar tus propias tareas.' });
+    }
+    const deleteResult = await query('DELETE FROM tarea WHERE pk = ?', [id]);
+    if (deleteResult.affectedRows === 0) return res.status(404).json({ error: 'Tarea no encontrada' });
     res.json({ mensaje: 'Tarea eliminada' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -349,6 +355,8 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
 
 
-app.listen(port, host, () => {
-  console.log(`Servidor corriendo en http://${host}:${port}`);
+app.listen(hostAndPort, () => {
+  console.log(`Servidor corriendo en http://${hostAndPort}`);
 });
+
+  https.createServer(cts, app).listen(443);
