@@ -1,7 +1,9 @@
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
+import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -9,12 +11,11 @@ import {
   Platform,
 } from 'react-native';
 import styled from 'styled-components/native';
-
-import { Picker as RNPicker } from '@react-native-picker/picker';
-
 import AnalogClock from '../(app)/analogClock';
+import { getAwsKeys } from '../clientKeyStore';
 import { colors } from '../styles/colors';
-
+const { sessionCookie } = getAwsKeys();
+let url: string; //url para archivo en AWS s3
 
 const taskTypes = ['ocio', 'importante', 'liviana', 'descanso'];
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
@@ -71,7 +72,7 @@ export default function Index() {
 
 
   // Función para enviar mensajes y generar respuesta simulada
-  const sendMsg = () => {
+ const sendMsg = async (pdfUrl: string, question: string) => {
 
     if (!input.trim()) return;
 
@@ -83,12 +84,12 @@ export default function Index() {
     setMsgs(cur => [...cur, userMsg]);
     setInput('');
 
-    setTimeout(() => {
+    setTimeout(async () => {
       let botResponse = 'No entiendo tu mensaje.';
 
       const text = userMsg.text.toLowerCase();
 
-      if (text.includes('hola')) {
+      /* if (text.includes('hola')) {
         botResponse = '¡Hola! ¿En qué puedo ayudarte hoy?';
       } else if (text.includes('tarea')) {
         botResponse = 'Recuerda que puedes agregar una nueva tarea con el botón "+"';
@@ -96,25 +97,74 @@ export default function Index() {
         botResponse = '¡Hasta luego! Que tengas un buen día 😊';
       } else if (text.includes('gracias')) {
         botResponse = '¡De nada! Estoy aquí para ayudarte.';
-      }
+      } */
 
-      setMsgs(cur => [
+    /*   setMsgs(cur => [
         ...cur,
         {
           id: Date.now().toString() + '-bot',
           text: botResponse,
           fromMe: false,
         },
-      ]);
+      ]); */
+
+
+
+        try {
+            const response = await fetch('http://localhost:3000/tareas/ia/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Cookie': sessionCookie, // Pass session cookie for authentication
+              },
+              credentials: 'include',
+              body: JSON.stringify({ pdf_url: pdfUrl, question }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+              // Handle response from /tareas/ia/
+              setMsgs(cur => [
+                ...cur,
+                {
+                  id: Date.now().toString() + '-ia',
+                  text: JSON.stringify(data),
+                  fromMe: false,
+                },
+              ]);
+            } else {
+              setMsgs(cur => [
+                ...cur,
+                {
+                  id: Date.now().toString() + '-error',
+                  text: data.error || 'Error al procesar IA',
+                  fromMe: false,
+                },
+              ]);
+            }
+          } catch (err) {
+            setMsgs(cur => [
+              ...cur,
+              {
+                id: Date.now().toString() + '-error',
+                text: 'No se pudo conectar a la IA',
+                fromMe: false,
+              },
+            ]);
+          }
+
+
+
+
     }, 800);
-  }; */
 
 
 
 
 
+  };
 
 
+  
  const uploadFile = async () => {
     let fileNamePDF, PDFfile;
     const result = await DocumentPicker.getDocumentAsync({});

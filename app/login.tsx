@@ -5,9 +5,8 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Modal } from 'react-native';
 import styled from 'styled-components/native';
+import { setAwsKeys as setClientKeys } from './clientKeyStore'; // Adjust path as needed
 import { colors } from './styles/colors'; // Assuming this path is correct
-import { setAwsKeys } from './awsKeyStore'; // Adjust path as needed
-import { useGoogleAuth } from './googleAuthCalendar'; // Import the Google auth hook
 
 const LoginScreen = () => {
   const router = useRouter();
@@ -28,22 +27,41 @@ const LoginScreen = () => {
     router.push('/Formulario'); // nombre en minúscula porque el archivo será formulario.tsx
   };
 
-  const handleLogin = () => {
-    if (email === 'admin' && password === '1234') {
-      Alert.alert('Bienvenido', 'Has ingresado correctamente', [
-        {
-          text: 'Aceptar',
-          onPress: () => router.replace('/(app)'),
-        },
-      ]);
-    } else {
-      Alert.alert('Error', 'Por favor ingresa un correo válido y contraseña correcta');
- 
+
+
+  //para el proceso de login con nuestro backend
+  const handleLogin = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // for session cookies
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+      // Get session cookie from response headers
+      const cookie = response.headers.get('set-cookie') || '';
+      setClientKeys(data.secretKeyId, data.secretKey, cookie);
+        ;
+        Alert.alert('Bienvenido', 'Has ingresado correctamente', [
+          {
+            text: 'Aceptar',
+            onPress: () => router.replace('/(app)'),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', data.error || 'Por favor ingresa un correo válido y contraseña correcta');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'No se pudo conectar al servidor');
     }
   };
 
-  return (
 
+  
+
+  return (
     <>
       <Container>
         <Logo>Growin</Logo>
@@ -112,11 +130,6 @@ const LoginScreen = () => {
         </ModalOverlay>
       </Modal>
     </>
-
-
-      
-
-      
   );
 };
 

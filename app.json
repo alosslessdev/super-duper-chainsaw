@@ -28,7 +28,12 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "config": {
+        "googleSignIn": {
+          "clientId": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com"
+        }
+      }
     },
     "plugins": [
       "expo-router",

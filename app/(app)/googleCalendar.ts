@@ -1,7 +1,7 @@
 // services/googleCalendar.ts
 // para despues del semestral
 
-import { getGoogleAccessToken } from '../awsKeyStore'; // Import to get the stored token
+import { getGoogleAccessToken } from '../clientKeyStore'; // Import to get the stored token
 
 // Base URL for the Google Calendar API (version 3)
 const GOOGLE_CALENDAR_API_BASE_URL = 'https://www.googleapis.com/calendar/v3';
