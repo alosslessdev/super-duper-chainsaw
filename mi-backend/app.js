@@ -31,10 +31,7 @@ app.use(cors({
 }));
 
 
-const cts = {
-    cert: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/fullchain.pem"),
-    key: fs.readFileSync("/etc/letsencrypt/live/0000243.xyz/privkey.pem")
-}
+
 
 
 //const express = require('express');
@@ -361,4 +358,4 @@ app.listen(hostAndPort, () => {
   console.log(`Servidor corriendo en http://${hostAndPort}`);
 });
 
-  https.createServer(cts, app).listen(443);
+

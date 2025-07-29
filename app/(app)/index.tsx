@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
@@ -163,7 +164,7 @@ export default function Index() {
 
     if (result.assets) {
       const s3Client = new S3Client({
-        region: 'us-east-1', // set your region
+        region: 'us-east-2', // set your region
         credentials: {
           accessKeyId: secretKeyId ?? '',
           secretAccessKey: secretKey ?? '',
