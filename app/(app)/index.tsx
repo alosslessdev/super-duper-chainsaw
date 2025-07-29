@@ -1,20 +1,17 @@
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
+import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-} from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
 import styled from 'styled-components/native';
-
-import { Picker as RNPicker } from '@react-native-picker/picker';
-
 import AnalogClock from '../(app)/analogClock';
+import { getAwsKeys } from '../clientKeyStore';
 import { colors } from '../styles/colors';
 
+const { sessionCookie } = getAwsKeys();
+let url: string; //url para archivo en AWS s3
 
 const taskTypes = ['ocio', 'importante', 'liviana', 'descanso'];
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
@@ -35,6 +32,12 @@ type Task = {
   startHour: number; // hora de inicio 0-23
 };
 
+type ProcessedTask = {
+  tarea: string;
+  tiempoEstimado?: string;
+  insertId: number;
+  error?: string;
+};
 
 type Msg = {
   id: string;
@@ -69,10 +72,12 @@ export default function Index() {
   // Para mostrar u ocultar chat
   const [chatVisible, setChatVisible] = useState(false);
 
+  // For AI processed tasks approval
+  const [aiProcessedTasks, setAiProcessedTasks] = useState<ProcessedTask[]>([]);
+  const [aiApprovalModalVisible, setAiApprovalModalVisible] = useState(false);
 
   // Función para enviar mensajes y generar respuesta simulada
-  const sendMsg = () => {
-
+  const sendMsg = async (pdfUrl: string, question: string) => {
     if (!input.trim()) return;
 
     const userMsg: Msg = {
@@ -83,88 +88,138 @@ export default function Index() {
     setMsgs(cur => [...cur, userMsg]);
     setInput('');
 
-    setTimeout(() => {
-      let botResponse = 'No entiendo tu mensaje.';
+    setTimeout(async () => {
+      try {
+        const response = await fetch('http://0000243.xyz:8080/tareas/ia/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: sessionCookie,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ pdf_url: pdfUrl, question }),
+        });
+        const data = await response.json();
 
-      const text = userMsg.text.toLowerCase();
-
-      if (text.includes('hola')) {
-        botResponse = '¡Hola! ¿En qué puedo ayudarte hoy?';
-      } else if (text.includes('tarea')) {
-        botResponse = 'Recuerda que puedes agregar una nueva tarea con el botón "+"';
-      } else if (text.includes('adiós') || text.includes('chao')) {
-        botResponse = '¡Hasta luego! Que tengas un buen día 😊';
-      } else if (text.includes('gracias')) {
-        botResponse = '¡De nada! Estoy aquí para ayudarte.';
+        if (response.ok) {
+          if (data.tareasProcesadas && data.tareasProcesadas.length > 0) {
+            setAiProcessedTasks(data.tareasProcesadas);
+            setAiApprovalModalVisible(true);
+            setMsgs(cur => [
+              ...cur,
+              {
+                id: Date.now().toString() + '-ia-prompt',
+                text: 'He recibido nuevas tareas de la IA. Por favor, revisa y aprueba cada una.',
+                fromMe: false,
+              },
+            ]);
+          } else if (data.error) {
+            setMsgs(cur => [
+              ...cur,
+              {
+                id: Date.now().toString() + '-ia-error',
+                text: `Error de la IA: ${data.error}`,
+                fromMe: false,
+              },
+            ]);
+          } else {
+            setMsgs(cur => [
+              ...cur,
+              {
+                id: Date.now().toString() + '-ia-unexpected',
+                text: 'Respuesta inesperada de la IA.',
+                fromMe: false,
+              },
+            ]);
+          }
+        } else {
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-error',
+              text: data.error || `Error al procesar IA: ${response.status} ${response.statusText}`,
+              fromMe: false,
+            },
+          ]);
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + '-error',
+            text: 'No se pudo conectar a la IA. Verifique su conexión o el servidor.',
+            fromMe: false,
+          },
+        ]);
       }
-
-      setMsgs(cur => [
-        ...cur,
-        {
-          id: Date.now().toString() + '-bot',
-          text: botResponse,
-          fromMe: false,
-        },
-      ]);
     }, 800);
-  }; */
+  };
 
-
-
-
-
-
-
- const uploadFile = async () => {
-    let fileNamePDF, PDFfile;
+  const uploadFile = async () => {
+    let fileNamePDF: string, PDFfile;
     const result = await DocumentPicker.getDocumentAsync({});
     const { secretKeyId, secretKey } = getAwsKeys();
 
     if (result.assets) {
-
-        const s3Client = new S3Client({
-        region: "us-east-1", // set your region
+      const s3Client = new S3Client({
+        region: 'us-east-1', // set your region
         credentials: {
-          accessKeyId: secretKeyId ?? "",
-          secretAccessKey: secretKey ?? "",
+          accessKeyId: secretKeyId ?? '',
+          secretAccessKey: secretKey ?? '',
         },
       });
-
 
       PDFfile = result.assets[0].uri;
       fileNamePDF = result.assets[0].name;
 
-
-
-      try{
-    
-      const response = await s3Client.send(
+      try {
+        const response = await s3Client.send(
           new PutObjectCommand({
-            Bucket: "save-pdf-test",
+            Bucket: 'save-pdf-test',
             Key: fileNamePDF,
             Body: PDFfile,
-          }),
+          })
         );
 
-      if (response.ETag){
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}` //change to random filename
+        if (response.ETag) {
+          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; //change to random filename
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload',
+              text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+              fromMe: false,
+            },
+          ]);
+        }
+      } catch (err) {
+        if (err instanceof Error) {
+          console.log('error while uploading');
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload-error',
+              text: `Error al subir el archivo: ${err.message}`,
+              fromMe: false,
+            },
+          ]);
+        }
       }
-
-      }catch (err){
-        console.log("error while uploading")
-      }
-
+    } else {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-upload-cancel',
+          text: 'Selección de archivo cancelada.',
+          fromMe: false,
+        },
+      ]);
     }
-
-    
-
   };
 
-
-  // Función para abrir modal agregar o editar tarea
   const openTaskModal = (task?: Task) => {
     if (task) {
-      // Editar tarea: precargar datos
       setTaskName(task.name);
       setTaskType(task.type);
       setTaskDescription(task.description);
@@ -173,7 +228,6 @@ export default function Index() {
       setSelectedTask(task);
       setIsEditing(true);
     } else {
-      // Nueva tarea
       setTaskName('');
       setTaskType('ocio');
       setTaskDescription('');
@@ -272,6 +326,112 @@ export default function Index() {
     setActionModalVisible(false);
   };
 
+  const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
+    // Convert ProcessedTask to Task type for the main task list
+    const newTask: Task = {
+      id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
+      name: taskToAccept.tarea,
+      type: 'general', // You might want to infer or ask for the type
+      description: taskToAccept.tiempoEstimado || '', // Use tiempoEstimado as description or leave empty
+      hours: 1, // Default, you might want AI to provide this or ask the user
+      startHour: 0, // Default, you might want AI to provide this or ask the user
+    };
+    setTasks(cur => [...cur, newTask]);
+    setAiProcessedTasks(cur =>
+      cur.filter(task => task.insertId !== taskToAccept.insertId)
+    );
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
+        text: `Tarea "${taskToAccept.tarea}" aceptada.`,
+        fromMe: false,
+      },
+    ]);
+  };
+
+  const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
+    try {
+      const response = await fetch(
+        `http://0000243.xyz:8080/tareas/por/${taskToReject.insertId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Cookie: sessionCookie,
+          },
+          credentials: 'include',
+        }
+      );
+
+      if (response.ok) {
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + `-rejected-${taskToReject.insertId}`,
+            text: `Tarea "${taskToReject.tarea}" rechazada y eliminada del servidor.`,
+            fromMe: false,
+          },
+        ]);
+      } else {
+        const errorData = await response.json();
+        setMsgs(cur => [
+          ...cur,
+          {
+            id:
+              Date.now().toString() +
+              `-reject-error-${taskToReject.insertId}`,
+            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${
+              errorData.error || response.statusText
+            }.`,
+            fromMe: false,
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error('Delete task error:', err);
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + `-reject-fetch-error-${taskToReject.insertId}`,
+          text: `Error de conexión al intentar rechazar la tarea "${taskToReject.tarea}".`,
+          fromMe: false,
+        },
+      ]);
+    } finally {
+      // Always remove from the approval list regardless of API success/failure
+      setAiProcessedTasks(cur =>
+        cur.filter(task => task.insertId !== taskToReject.insertId)
+      );
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('http://0000243.xyz:8080/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie, // Send the cookie to ensure the correct session is logged out
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        // Clear local session data if necessary (e.g., setAwsKeys to empty values)
+        // setAwsKeys('', '', ''); // This would require modifying setAwsKeys to clear.
+        // For now, simply navigate.
+        alert('Sesión cerrada exitosamente.');
+        router.replace('/'); // Navigate to a login or initial screen
+      } else {
+        const errorData = await response.json();
+        alert(`Error al cerrar sesión: ${errorData.error || response.statusText}`);
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+      alert('Error de conexión al intentar cerrar sesión.');
+    }
+  };
+
   const FechaText = styled.Text`
     font-size: 18px;
     font-weight: bold;
@@ -298,7 +458,9 @@ export default function Index() {
           headerTitleAlign: 'center',
           headerTintColor: 'white',
           headerLeft: () => (
-            <HeaderButton onPress={() => nav.dispatch(DrawerActions.toggleDrawer())}>
+            <HeaderButton
+              onPress={() => nav.dispatch(DrawerActions.toggleDrawer())}
+            >
               <HeaderText>☰</HeaderText>
             </HeaderButton>
           ),
@@ -332,7 +494,9 @@ export default function Index() {
           >
             <ModalBackground>
               <ModalContainer>
-                <ModalTitle>{isEditing ? 'Editar tarea' : 'Agregar nueva tarea'}</ModalTitle>
+                <ModalTitle>
+                  {isEditing ? 'Editar tarea' : 'Agregar nueva tarea'}
+                </ModalTitle>
 
                 <InputLabel>Nombre de la tarea (max 20 caracteres):</InputLabel>
                 <TextInputStyled
@@ -345,7 +509,9 @@ export default function Index() {
                 <InputLabel>Tipo de tarea:</InputLabel>
                 <PickerStyled
                   selectedValue={taskType}
-                  onValueChange={(itemValue: string) => setTaskType(itemValue)}
+                  onValueChange={(itemValue: string) =>
+                    setTaskType(itemValue)
+                  }
                 >
                   {taskTypes.map(type => (
                     <RNPicker.Item label={type} value={type} key={type} />
@@ -363,7 +529,9 @@ export default function Index() {
                 <InputLabel>Hora de inicio (0-23):</InputLabel>
                 <PickerStyled
                   selectedValue={taskStartHour}
-                  onValueChange={(itemValue: string) => setTaskStartHour(itemValue)}
+                  onValueChange={(itemValue: string) =>
+                    setTaskStartHour(itemValue)
+                  }
                 >
                   {hoursOfDay.map(h => (
                     <RNPicker.Item key={h} label={h} value={h} />
@@ -384,7 +552,9 @@ export default function Index() {
                     <ModalButtonText>Cancelar</ModalButtonText>
                   </ModalButtonCancel>
                   <ModalButtonSave onPress={saveTask}>
-                    <ModalButtonText>{isEditing ? 'Actualizar' : 'Guardar'}</ModalButtonText>
+                    <ModalButtonText>
+                      {isEditing ? 'Actualizar' : 'Guardar'}
+                    </ModalButtonText>
                   </ModalButtonSave>
                 </ModalButtonsRow>
               </ModalContainer>
@@ -412,8 +582,59 @@ export default function Index() {
                   </ModalButtonCancel>
                 </ModalButtonsRow>
 
-                <ModalButtonCancel onPress={() => setActionModalVisible(false)} style={{ marginTop: 10 }}>
+                <ModalButtonCancel
+                  onPress={() => setActionModalVisible(false)}
+                  style={{ marginTop: 10 }}
+                >
                   <ModalButtonText>Cancelar</ModalButtonText>
+                </ModalButtonCancel>
+              </ModalContainer>
+            </ModalBackground>
+          </Modal>
+
+          {/* Modal para aprobación/rechazo de tareas de la IA */}
+          <Modal
+            visible={aiApprovalModalVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setAiApprovalModalVisible(false)}
+          >
+            <ModalBackground>
+              <ModalContainer>
+                <ModalTitle>Tareas sugeridas por la IA</ModalTitle>
+                <FlatList
+                  data={aiProcessedTasks}
+                  keyExtractor={item => item.insertId.toString()}
+                  renderItem={({ item }) => (
+                    <AITaskItem>
+                      <TaskName>{item.tarea}</TaskName>
+                      {item.tiempoEstimado && (
+                        <TaskType>Tiempo estimado: {item.tiempoEstimado}</TaskType>
+                      )}
+                      {item.error && <TaskDesc>Error: {item.error}</TaskDesc>}
+                      <ModalButtonsRow>
+                        <ModalButtonSave
+                          onPress={() => handleAcceptProcessedTask(item)}
+                        >
+                          <ModalButtonText>Aceptar</ModalButtonText>
+                        </ModalButtonSave>
+                        <ModalButtonCancel
+                          onPress={() => handleRejectProcessedTask(item)}
+                        >
+                          <ModalButtonText>Rechazar</ModalButtonText>
+                        </ModalButtonCancel>
+                      </ModalButtonsRow>
+                    </AITaskItem>
+                  )}
+                  ListEmptyComponent={() => (
+                    <TaskDesc>No hay tareas pendientes de aprobación.</TaskDesc>
+                  )}
+                />
+                <ModalButtonCancel
+                  onPress={() => setAiApprovalModalVisible(false)}
+                  style={{ marginTop: 20 }}
+                >
+                  <ModalButtonText>Cerrar</ModalButtonText>
                 </ModalButtonCancel>
               </ModalContainer>
             </ModalBackground>
@@ -434,13 +655,13 @@ export default function Index() {
                 <TaskType>{item.type}</TaskType>
                 <TaskDesc>{item.description}</TaskDesc>
                 <TaskHours>
-                  De {item.startHour}:00 a {item.startHour + item.hours}:00 ({item.hours} h)
+                  De {item.startHour}:00 a {item.startHour + item.hours}:00 (
+                  {item.hours} h)
                 </TaskHours>
               </TouchableTaskItem>
             )}
             contentContainerStyle={{ paddingBottom: 20 }}
           />
-
 
           {/* Botón flotante para abrir chat */}
           {!chatVisible && (
@@ -478,36 +699,39 @@ export default function Index() {
               />
 
               <InputRow>
+                <UploadButton onPress={uploadFile}>
+                  <UploadButtonText>⬆️ PDF</UploadButtonText>
+                </UploadButton>
                 <Input
                   value={input}
                   onChangeText={setInput}
                   placeholder="Escribe un mensaje..."
                 />
-                <SendButton onPress={sendMsg}>
+                <SendButton onPress={() => sendMsg(url, input)}>
                   <SendText>➤</SendText>
                 </SendButton>
               </InputRow>
             </ChatContainer>
           </Modal>
-
         </Container>
       </KeyboardAvoidingView>
     </>
   );
 }
 
-// Estilos
+// --- Estilos ---
 
 const Bubble = styled.View.withConfig({})<{ fromMe: boolean }>`
   margin-vertical: 4px;
   padding: 12px;
   max-width: 70%;
   border-radius: 12px;
-
+  background-color: ${(props: { fromMe: any; }) => (props.fromMe ? '#0A84FF' : '#E5E5EA')};
+  align-self: ${(props: { fromMe: any; }) => (props.fromMe ? 'flex-end' : 'flex-start')};
 `;
 
 const BubbleText = styled.Text`
-  color: #ffffff;
+  color: ${(props: { fromMe: any; }) => (props.fromMe ? '#ffffff' : '#000000')};
   font-size: 16px;
 `;
 
@@ -561,7 +785,6 @@ const SendButton = styled.TouchableOpacity`
   border-radius: 20px;
 `;
 
-
 const SendText = styled.Text`
   color: white;
   font-weight: bold;
@@ -609,6 +832,7 @@ const ModalContainer = styled.View`
   border-radius: 12px;
   padding: 20px;
   elevation: 10;
+  max-height: 80%; /* Added to prevent modal from overflowing on smaller screens */
 `;
 
 const ModalTitle = styled.Text`
@@ -633,12 +857,20 @@ const ModalButtonCancel = styled.Pressable`
   background-color: #aaa;
   padding: 10px 20px;
   border-radius: 8px;
+  flex: 1; /* Added for equal button width */
+  margin: 0 5px; /* Added spacing between buttons */
+  justify-content: center; /* Center text vertically */
+  align-items: center; /* Center text horizontally */
 `;
 
 const ModalButtonSave = styled.Pressable`
   background-color: #0A84FF;
   padding: 10px 20px;
   border-radius: 8px;
+  flex: 1; /* Added for equal button width */
+  margin: 0 5px; /* Added spacing between buttons */
+  justify-content: center; /* Center text vertically */
+  align-items: center; /* Center text horizontally */
 `;
 
 const ModalButtonText = styled.Text`
@@ -720,10 +952,23 @@ const CloseButtonText = styled.Text`
   color: #888;
 `;
 
+const UploadButton = styled.TouchableOpacity`
+  background-color: #0A84FF;
+  padding: 10px 12px;
+  border-radius: 20px;
+  margin-right: 8px;
+`;
 
-// para subir a aws s3
+const UploadButtonText = styled.Text`
+  color: white;
+  font-weight: bold;
+`;
 
-
- 
-
- 
+const AITaskItem = styled.View`
+  background-color: #f8f8f8;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-width: 1px;
+  border-color: #eee;
+`;

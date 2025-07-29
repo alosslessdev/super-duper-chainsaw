@@ -22,6 +22,8 @@ const app = express(); //declaracion de aplicacion
 const isProd = process.argv.includes('--prod');
 const hostAndPort = isProd ? '0.0.0.0:8080' : 'localhost:3000';
 
+
+//maybe cors can be removed
 import cors from 'cors';
 app.use(cors({
   origin: 'http://localhost:3000', // or wherever Swagger UI is served
@@ -245,7 +247,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     while (attempt < 2 && !jsonRepairSuccess) {
       try {
         response = await axios.post(
-          `http://localhost:8000/secure-data`,
+          `http://0000243.xyz:8000/secure-data`,
           {
             pdf_url: req.body.pdf_url || '',
             question: req.body.question

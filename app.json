@@ -20,7 +20,7 @@
       "package": "com.growin.growin",
       "config": {
         "googleSignIn": {
-          "apiKey": "YOUR_WEB_CLIENT_ID_FROM_GOOGLE_CLOUD_CONSOLE",
+          "apiKey": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com",
           "androidClientId": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com"
         }
       }
@@ -28,7 +28,12 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "config": {
+        "googleSignIn": {
+          "clientId": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com"
+        }
+      }
     },
     "plugins": [
       "expo-router",

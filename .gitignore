@@ -43,3 +43,4 @@ venv
 expo-env.d.ts
 package-lock.json
 __pycache__
+.expo/types/router.d.ts
