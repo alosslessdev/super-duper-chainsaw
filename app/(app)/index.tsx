@@ -88,7 +88,7 @@ export default function Index() {
       // Removed the static bot responses as they are now handled by the AI
       
       try {
-          const response = await fetch('http://localhost:3000/tareas/ia/', {
+          const response = await fetch('http://0000243.xyz:8080/tareas/ia/', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

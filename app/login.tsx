@@ -74,7 +74,7 @@ const LoginScreen = () => {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/login', {
+      const response = await fetch('http://0000243.xyz:8080/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -132,7 +132,7 @@ const LoginScreen = () => {
       const googleEmail = userInfo.email;
 
       // Send Google email to your backend for registration/login
-      const backendResponse = await fetch('http://localhost:3000/google-login', {
+      const backendResponse = await fetch('http://0000243.xyz:8080/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -208,7 +208,9 @@ const LoginScreen = () => {
           <ModalContent>
             <ModalTitle>Registrarse con:</ModalTitle>
 
-            <SocialButton onPress={handleGoogleLogin} disabled={!request || loading}>
+
+            {/*organizar codigo como los demas abajo*/}
+            <SocialButton onPress={handleGoogleLogin} disabled={!request || loading}> 
               {loading ? <ActivityIndicator color="white" /> : (
                 <>
                   <FontAwesome name="google" size={20} color="white" />
@@ -217,6 +219,7 @@ const LoginScreen = () => {
               )}
             </SocialButton>
 
+            {/*como estos*/}
             <SocialButton onPress={() => handleSocialRegister('Facebook')}>
               <FontAwesome name="facebook" size={20} color="white" />
               <SocialText>Facebook</SocialText>
