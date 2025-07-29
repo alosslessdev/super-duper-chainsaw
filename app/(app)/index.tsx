@@ -72,7 +72,7 @@ export default function Index() {
 
 
   // Función para enviar mensajes y generar respuesta simulada
- const sendMsg = async (pdfUrl: string, question: string) => {
+ const sendMsg = async (pdfUrl: string, question: string) => { // pdfUrl and question parameters are not currently used when calling sendMsg. You might want to review where sendMsg is called to ensure these are passed if needed by the backend.
 
     if (!input.trim()) return;
 
@@ -85,82 +85,72 @@ export default function Index() {
     setInput('');
 
     setTimeout(async () => {
-      let botResponse = 'No entiendo tu mensaje.';
+      // Removed the static bot responses as they are now handled by the AI
+      
+      try {
+          const response = await fetch('http://localhost:3000/tareas/ia/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cookie': sessionCookie,
+            },
+            credentials: 'include',
+            body: JSON.stringify({ pdf_url: pdfUrl, question }), // Ensure pdfUrl and question are passed correctly
+          });
+          const data = await response.json();
 
-      const text = userMsg.text.toLowerCase();
+          if (response.ok) {
+            let botResponse = 'No se procesaron tareas.'; // Default response if no tasks are processed
 
-      /* if (text.includes('hola')) {
-        botResponse = '¡Hola! ¿En qué puedo ayudarte hoy?';
-      } else if (text.includes('tarea')) {
-        botResponse = 'Recuerda que puedes agregar una nueva tarea con el botón "+"';
-      } else if (text.includes('adiós') || text.includes('chao')) {
-        botResponse = '¡Hasta luego! Que tengas un buen día 😊';
-      } else if (text.includes('gracias')) {
-        botResponse = '¡De nada! Estoy aquí para ayudarte.';
-      } */
-
-    /*   setMsgs(cur => [
-        ...cur,
-        {
-          id: Date.now().toString() + '-bot',
-          text: botResponse,
-          fromMe: false,
-        },
-      ]); */
-
-
-
-        try {
-            const response = await fetch('http://localhost:3000/tareas/ia/', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Cookie': sessionCookie, // Pass session cookie for authentication
-              },
-              credentials: 'include',
-              body: JSON.stringify({ pdf_url: pdfUrl, question }),
-            });
-            const data = await response.json();
-            if (response.ok) {
-              // Handle response from /tareas/ia/
-              setMsgs(cur => [
-                ...cur,
-                {
-                  id: Date.now().toString() + '-ia',
-                  text: JSON.stringify(data),
-                  fromMe: false,
-                },
-              ]);
+            if (data.tareasProcesadas && data.tareasProcesadas.length > 0) {
+              botResponse = 'Tareas procesadas:\n\n';
+              data.tareasProcesadas.forEach((task: any) => {
+                botResponse += `• Tarea: ${task.tarea}\n`;
+                if (task.tiempoEstimado) {
+                  botResponse += `  Tiempo estimado: ${task.tiempoEstimado}\n`;
+                }
+                if (task.error) {
+                  botResponse += `  Error: ${task.error}\n`;
+                }
+                botResponse += '\n'; // Add an extra newline for spacing between tasks
+              });
+            } else if (data.error) {
+                botResponse = `Error de la IA: ${data.error}`;
             } else {
-              setMsgs(cur => [
-                ...cur,
-                {
-                  id: Date.now().toString() + '-error',
-                  text: data.error || 'Error al procesar IA',
-                  fromMe: false,
-                },
-              ]);
+                botResponse = 'Respuesta inesperada de la IA.';
             }
-          } catch (err) {
+
+            setMsgs(cur => [
+              ...cur,
+              {
+                id: Date.now().toString() + '-ia',
+                text: botResponse,
+                fromMe: false,
+              },
+            ]);
+          } else {
+            // This handles HTTP errors (e.g., 400, 500)
             setMsgs(cur => [
               ...cur,
               {
                 id: Date.now().toString() + '-error',
-                text: 'No se pudo conectar a la IA',
+                text: data.error || `Error al procesar IA: ${response.status} ${response.statusText}`,
                 fromMe: false,
               },
             ]);
           }
-
-
-
-
+        } catch (err) {
+          console.error("Fetch error:", err); // Log the actual error for debugging
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-error',
+              text: 'No se pudo conectar a la IA. Verifique su conexión o el servidor.',
+              fromMe: false,
+            },
+          ]);
+        }
     }, 800);
-
-
-
-
-
   };
 
 
