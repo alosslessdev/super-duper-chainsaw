@@ -26,12 +26,12 @@ const LoginScreen = () => {
   // Google OAuth Configuration
   // IMPORTANT: Replace with your actual Web Client ID from Google Cloud Console
   // For Expo Go, use the Web client ID. For standalone Android, use the Android client ID.
-  const WEB_CLIENT_ID = 'YOUR_WEB_CLIENT_ID'; // e.g., '1234567890-abcdefghijk.apps.googleusercontent.com'
-  const ANDROID_CLIENT_ID = 'YOUR_ANDROID_CLIENT_ID'; // e.g., '1234567890-abcdefghijk.apps.googleusercontent.com'
+  //const WEB_CLIENT_ID = 'YOUR_WEB_CLIENT_ID'; // e.g., '1234567890-abcdefghijk.apps.googleusercontent.com'
+  const ANDROID_CLIENT_ID = '1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com'; // e.g., '1234567890-abcdefghijk.apps.googleusercontent.com'
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: ANDROID_CLIENT_ID,
-    webClientId: WEB_CLIENT_ID,
+    //webClientId: WEB_CLIENT_ID,
     scopes: ['profile', 'email'],
     // This is crucial for Expo Go. For standalone apps, you'd use a custom scheme.
    // redirectUri: makeRedirectUri({ useProxy: true }),
