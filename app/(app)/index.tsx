@@ -156,7 +156,7 @@ export default function Index() {
 
   
  const uploadFile = async () => {
-    let fileNamePDF, PDFfile;
+    let fileNamePDF: string, PDFfile;
     const result = await DocumentPicker.getDocumentAsync({});
     const { secretKeyId, secretKey } = getAwsKeys();
 
@@ -188,16 +188,41 @@ export default function Index() {
 
       if (response.ETag){
         url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}` //change to random filename
+        // Optionally, send a message to the chat indicating the file was uploaded
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + '-upload',
+            text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+            fromMe: false,
+          },
+        ]);
       }
 
       }catch (err){
-        console.log("error while uploading")
+        if (err instanceof Error) {
+          console.log("error while uploading")
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload-error',
+              text: `Error al subir el archivo: ${err.message}`,
+              fromMe: false,
+            },
+          ]);
+        }
       }
 
+    } else {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-upload-cancel',
+          text: 'Selección de archivo cancelada.',
+          fromMe: false,
+        },
+      ]);
     }
-
-    
-
   };
 
 
@@ -518,12 +543,15 @@ export default function Index() {
               />
 
               <InputRow>
+                <UploadButton onPress={uploadFile}>
+                  <UploadButtonText>⬆️ PDF</UploadButtonText>
+                </UploadButton>
                 <Input
                   value={input}
                   onChangeText={setInput}
                   placeholder="Escribe un mensaje..."
                 />
-                <SendButton onPress={sendMsg}>
+                <SendButton onPress={() => sendMsg(url, input)}>
                   <SendText>➤</SendText>
                 </SendButton>
               </InputRow>
@@ -543,7 +571,7 @@ const Bubble = styled.View.withConfig({})<{ fromMe: boolean }>`
   padding: 12px;
   max-width: 70%;
   border-radius: 12px;
-
+ 
 `;
 
 const BubbleText = styled.Text`
@@ -600,7 +628,6 @@ const SendButton = styled.TouchableOpacity`
   padding: 10px 16px;
   border-radius: 20px;
 `;
-
 
 const SendText = styled.Text`
   color: white;
@@ -760,10 +787,14 @@ const CloseButtonText = styled.Text`
   color: #888;
 `;
 
+const UploadButton = styled.TouchableOpacity`
+  background-color: #0A84FF;
+  padding: 10px 12px;
+  border-radius: 20px;
+  margin-right: 8px;
+`;
 
-// para subir a aws s3
-
-
- 
-
- 
+const UploadButtonText = styled.Text`
+  color: white;
+  font-weight: bold;
+`;
