@@ -24,17 +24,20 @@ const LoginScreen = () => {
   const [loading, setLoading] = useState(false);
 
   // Google OAuth Configuration
-  // IMPORTANT: Replace with your actual Web Client ID from Google Cloud Console
-  // For Expo Go, use the Web client ID. For standalone Android, use the Android client ID.
-  //const WEB_CLIENT_ID = 'YOUR_WEB_CLIENT_ID'; // e.g., '1234567890-abcdefghijk.apps.googleusercontent.com'
+  // IMPORTANT: Replace with your actual Android Client ID from Google Cloud Console
   const ANDROID_CLIENT_ID = '1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com'; // e.g., '1234567890-abcdefghijk.apps.googleusercontent.com'
+  // For standalone Android apps, a custom URI scheme is typically used.
+  // Replace 'com.yourcompany.yourapp' with your actual package name from app.json
+  const REDIRECT_URI = makeRedirectUri({
+    scheme: 'com.yourcompany.yourapp', // Replace with your actual Android package name
+    path: 'oauthredirect', // Optional path, can be anything you configure in Google Cloud
+    preferLocalhost: true, // Use localhost for development, will be ignored in production builds if scheme is present
+  });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: ANDROID_CLIENT_ID,
-    //webClientId: WEB_CLIENT_ID,
     scopes: ['profile', 'email'],
-    // This is crucial for Expo Go. For standalone apps, you'd use a custom scheme.
-   // redirectUri: makeRedirectUri({ useProxy: true }),
+    redirectUri: REDIRECT_URI,
   });
 
   useEffect(() => {
@@ -82,13 +85,15 @@ const LoginScreen = () => {
         const cookie = response.headers.get('set-cookie') || '';
         setAwsKeys(data.secretKeyId, data.secretKey, cookie);
         setUserEmail(email); // Store the email
+
         Alert.alert('Bienvenido', 'Has ingresado correctamente', [
           {
             text: 'Aceptar',
             onPress: () => router.replace('/(app)'),
           },
         ]);    
-        } else {
+
+      } else {
         Alert.alert('Error', data.error || 'Por favor ingresa un correo válido y contraseña correcta');
       }
     } catch (err) {
@@ -204,11 +209,12 @@ const LoginScreen = () => {
             <ModalTitle>Registrarse con:</ModalTitle>
 
             <SocialButton onPress={handleGoogleLogin} disabled={!request || loading}>
+              {loading ? <ActivityIndicator color="white" /> : (
                 <>
                   <FontAwesome name="google" size={20} color="white" />
                   <SocialText>Gmail</SocialText>
                 </>
-              )
+              )}
             </SocialButton>
 
             <SocialButton onPress={() => handleSocialRegister('Facebook')}>
