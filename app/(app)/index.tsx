@@ -182,6 +182,9 @@ export default function Index() {
     PDFfileUri = result.assets[0].uri;
     fileNamePDF = result.assets[0].name;
 
+    // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
+    fileNamePDF = `${Date.now()}-${fileNamePDF}`;
+
     try {
       // Read the file content as base64
       // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
@@ -213,9 +216,7 @@ export default function Index() {
       );
 
       if (response.ETag) {
-        // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
-        const uniqueFileName = `${Date.now()}-${fileNamePDF}`;
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${uniqueFileName}`; 
+        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; 
 
         setMsgs(cur => [
           ...cur,
