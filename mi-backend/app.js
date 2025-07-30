@@ -1,6 +1,5 @@
 // Load environment variables from .env file
-require('dotenv').config();
-
+import 'dotenv/config'; 
 import axios from 'axios';
 import express from 'express';
 import session from 'express-session';
