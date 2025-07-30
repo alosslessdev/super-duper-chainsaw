@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
@@ -9,6 +10,7 @@ import styled from 'styled-components/native';
 import AnalogClock from '../(app)/analogClock';
 import { getAwsKeys } from '../clientKeyStore';
 import { colors } from '../styles/colors';
+import * as FileSystem from 'expo-file-system';
 
 const { sessionCookie } = getAwsKeys();
 let url: string; //url para archivo en AWS s3
@@ -78,15 +80,24 @@ export default function Index() {
 
   // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = async (pdfUrl: string, question: string) => {
-    if (!input.trim()) return;
-
-    const userMsg: Msg = {
-      id: Date.now().toString(),
-      text: input.trim(),
-      fromMe: true,
-    };
-    setMsgs(cur => [...cur, userMsg]);
-    setInput('');
+    if (!question.trim()) { // Allow empty question if PDF is being processed
+        setMsgs(cur => [
+            ...cur,
+            {
+                id: Date.now().toString() + '-ai-processing-start',
+                text: 'Procesando archivo con IA...',
+                fromMe: false,
+            },
+        ]);
+    } else {
+        const userMsg: Msg = {
+            id: Date.now().toString(),
+            text: question.trim(),
+            fromMe: true,
+        };
+        setMsgs(cur => [...cur, userMsg]);
+        setInput('');
+    }
 
     setTimeout(async () => {
       try {
@@ -157,58 +168,85 @@ export default function Index() {
   };
 
   const uploadFile = async () => {
-    let fileNamePDF: string, PDFfile;
-    const result = await DocumentPicker.getDocumentAsync({});
-    const { secretKeyId, secretKey } = getAwsKeys();
+  let fileNamePDF: string;
+  let PDFfileUri: string; // Renamed for clarity
 
-    if (result.assets) {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: 'application/pdf', // Specify PDF type for better filtering
+    copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
+  });
+
+  const { secretKeyId, secretKey } = getAwsKeys();
+
+  if (result.assets && result.assets.length > 0) {
+    PDFfileUri = result.assets[0].uri;
+    fileNamePDF = result.assets[0].name;
+
+    // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
+    fileNamePDF = `${Date.now()}-${fileNamePDF}`;
+
+    try {
+      // Read the file content as base64
+      // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
+      const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert base64 to a Uint8Array or Buffer for S3
+      // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
+      // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
+      // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
+      const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
+
       const s3Client = new S3Client({
-        region: 'us-east-1', // set your region
+        region: 'us-east-2', // set your region
         credentials: {
           accessKeyId: secretKeyId ?? '',
           secretAccessKey: secretKey ?? '',
         },
       });
 
-      PDFfile = result.assets[0].uri;
-      fileNamePDF = result.assets[0].name;
+      const response = await s3Client.send(
+        new PutObjectCommand({
+          Bucket: 'save-pdf-test',
+          Key: fileNamePDF,
+          Body: decodedFile, // Pass the decoded file content
+          ContentType: 'application/pdf', // Specify content type
+        })
+      );
 
-      try {
-        const response = await s3Client.send(
-          new PutObjectCommand({
-            Bucket: 'save-pdf-test',
-            Key: fileNamePDF,
-            Body: PDFfile,
-          })
-        );
+      if (response.ETag) {
+        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; 
 
-        if (response.ETag) {
-          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; //change to random filename
-          setMsgs(cur => [
-            ...cur,
-            {
-              id: Date.now().toString() + '-upload',
-              text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
-              fromMe: false,
-            },
-          ]);
-        }
-      } catch (err) {
-        if (err instanceof Error) {
-          console.log('error while uploading');
-          setMsgs(cur => [
-            ...cur,
-            {
-              id: Date.now().toString() + '-upload-error',
-              text: `Error al subir el archivo: ${err.message}`,
-              fromMe: false,
-            },
-          ]);
-        }
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + '-upload',
+            text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+            fromMe: false,
+          },
+        ]);
+        sendMsg(url, input);
       }
-    } else {
-      setMsgs(cur => [
-        ...cur,
+    } catch (err) {
+      if (err instanceof Error) {
+        console.log('error while uploading', err); // Log the full error for debugging
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + '-upload-error',
+            text: `Error al subir el archivo: ${err.message}`,
+            fromMe: false,
+          },
+        ]);
+      }
+    } finally {
+      // Optional: Clean up the cached file if you don't need it anymore
+      // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
+    }
+  } else {
+    setMsgs(cur => [
+      ...cur,
         {
           id: Date.now().toString() + '-upload-cancel',
           text: 'Selección de archivo cancelada.',
@@ -217,6 +255,7 @@ export default function Index() {
       ]);
     }
   };
+
 
   const openTaskModal = (task?: Task) => {
     if (task) {
