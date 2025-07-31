@@ -345,15 +345,18 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
         let horas = tareasJson[horasKey];
 
         // Validar y convertir 'horas' a un entero, o asignar un valor por defecto (3)
+        // Si es un número (entero o decimal), redondear hacia arriba
         if (typeof horas === 'string') {
-          const horasInt = parseInt(horas, 10);
-          if (isNaN(horasInt)) {
+          const horasFloat = parseFloat(horas); // Usar parseFloat para manejar decimales
+          if (isNaN(horasFloat)) {
             horas = 3;
           } else {
-            horas = horasInt;
+            horas = Math.ceil(horasFloat); // Redondear hacia arriba
           }
-        } else if (typeof horas !== 'number' || isNaN(horas)) {
-          horas = 3;
+        } else if (typeof horas === 'number' && !isNaN(horas)) {
+          horas = Math.ceil(horas); // Redondear hacia arriba si ya es un número
+        } else {
+          horas = 3; // Valor por defecto si no es un número válido
         }
         tareas.push({ descripcion, titulo, tiempoEstimado, horas });
       }
