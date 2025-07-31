@@ -407,7 +407,7 @@ export default function Index() {
           ...cur,
           {
             id: Date.now().toString() + `-rejected-${taskToReject.insertId}`,
-            text: `Tarea "${taskToReject.tarea}" rechazada y eliminada del servidor.`,
+            text: `Tarea "${taskToReject.tarea}" rechazada y eliminada`,
             fromMe: false,
           },
         ]);
