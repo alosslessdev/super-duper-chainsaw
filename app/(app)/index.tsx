@@ -37,6 +37,7 @@ type Task = {
 type ProcessedTask = {
   tarea: string;
   tiempoEstimado?: string;
+  descripcion?: string; // Add this field for the AI's description
   insertId: number;
   error?: string;
 };
@@ -105,10 +106,10 @@ export default function Index() {
         // Assuming data is an array of tasks from the server.
         // You might need to map the server response to your `Task` type if different.
         const loadedTasks: Task[] = data.map((serverTask: any) => ({
-          id: serverTask.id.toString(), // Ensure ID is string
+          id: serverTask.pk.toString(), // Ensure ID is string
           name: serverTask.name,
           type: serverTask.type || 'general', // Default to 'general' if not provided
-          description: serverTask.description || '',
+          description: serverTask.descripcion || '',
           hours: serverTask.hours || 1,
           startHour: serverTask.startHour || 0,
         }));
@@ -461,28 +462,29 @@ export default function Index() {
   };
 
   const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
-    // Convert ProcessedTask to Task type for the main task list
-    const newTask: Task = {
-      id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
-      name: taskToAccept.tarea,
-      type: 'general', // You might want to infer or ask for the type
-      description: taskToAccept.tiempoEstimado || '', // Use tiempoEstimado as description or leave empty
-      hours: 1, // Default, you might want AI to provide this or ask the user
-      startHour: 0, // Default, you might want AI to provide this or ask the user
-    };
-    setTasks(cur => [...cur, newTask]);
-    setAiProcessedTasks(cur =>
-      cur.filter(task => task.insertId !== taskToAccept.insertId)
-    );
-    setMsgs(cur => [
-      ...cur,
-      {
-        id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
-        text: `Tarea "${taskToAccept.tarea}" aceptada.`,
-        fromMe: false,
-      },
-    ]);
+  // Convert ProcessedTask to Task type for the main task list
+  const newTask: Task = {
+    id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
+    name: taskToAccept.tarea,
+    type: 'general', // You might want to infer or ask for the type
+    // Changed this line: Use taskToAccept.descripcion for the description
+    description: taskToAccept.descripcion || '',
+    hours: 1, // Default, you might want AI to provide this or ask the user
+    startHour: 0, // Default, you might want AI to provide this or ask the user
   };
+  setTasks(cur => [...cur, newTask]);
+  setAiProcessedTasks(cur =>
+    cur.filter(task => task.insertId !== taskToAccept.insertId)
+  );
+  setMsgs(cur => [
+    ...cur,
+    {
+      id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
+      text: `Tarea "${taskToAccept.tarea}" aceptada.`,
+      fromMe: false,
+    },
+  ]);
+};
 
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
     try {
@@ -836,7 +838,6 @@ export default function Index() {
                   </Bubble>
                 )}
                 contentContainerStyle={{ padding: 16, flexGrow: 1 }}
-                inverted
                 style={{ flex: 1 }}
               />
 
