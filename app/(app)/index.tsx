@@ -1,3 +1,4 @@
+
 import 'react-native-get-random-values';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
@@ -37,7 +38,7 @@ type Task = {
 type ProcessedTask = {
   tarea: string;
   tiempoEstimado?: string;
-  descripcion?: string; // Add this field for the AI's description
+  horas: number; // Added 'horas' from backend schema
   insertId: number;
   error?: string;
 };
@@ -133,25 +134,47 @@ export default function Index() {
   }, [fetchTasks]);
 
 
+  // Helper function to find the next available start hour for a task
+  const findNextAvailableHour = useCallback((duration: number, existingTasks: Task[]): number => {
+    for (let hour = 0; hour <= 24 - duration; hour++) {
+      let isConflict = false;
+      const newEnd = hour + duration;
+      for (const existingTask of existingTasks) {
+        const existingStart = existingTask.startHour;
+        const existingEnd = existingTask.startHour + existingTask.hours;
+
+        // Check for overlap
+        if (!(newEnd <= existingStart || hour >= existingEnd)) {
+          isConflict = true;
+          break;
+        }
+      }
+      if (!isConflict) {
+        return hour;
+      }
+    }
+    return -1; // No available slot found
+  }, []);
+
   // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
-        setMsgs(cur => [
-            ...cur,
-            {
-                id: Date.now().toString() + '-ai-processing-start',
-                text: 'Procesando archivo con IA...',
-                fromMe: false,
-            },
-        ]);
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ai-processing-start',
+          text: 'Procesando archivo con IA...',
+          fromMe: false,
+        },
+      ]);
     } else {
-        const userMsg: Msg = {
-            id: Date.now().toString(),
-            text: question.trim(),
-            fromMe: true,
-        };
-        setMsgs(cur => [...cur, userMsg]);
-        setInput('');
+      const userMsg: Msg = {
+        id: Date.now().toString(),
+        text: question.trim(),
+        fromMe: true,
+      };
+      setMsgs(cur => [...cur, userMsg]);
+      setInput('');
     }
 
     setTimeout(async () => {
@@ -223,85 +246,85 @@ export default function Index() {
   };
 
   const uploadFile = async () => {
-  let fileNamePDF: string;
-  let PDFfileUri: string; // Renamed for clarity
+    let fileNamePDF: string;
+    let PDFfileUri: string; // Renamed for clarity
 
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/pdf', // Specify PDF type for better filtering
-    copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
-  });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf', // Specify PDF type for better filtering
+      copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
+    });
 
-  const { secretKeyId, secretKey } = getAwsKeys();
+    const { secretKeyId, secretKey } = getAwsKeys();
 
-  if (result.assets && result.assets.length > 0) {
-    PDFfileUri = result.assets[0].uri;
-    fileNamePDF = result.assets[0].name;
+    if (result.assets && result.assets.length > 0) {
+      PDFfileUri = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
 
-    // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
-    fileNamePDF = `${Date.now()}-${fileNamePDF}`;
+      // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
+      fileNamePDF = `${Date.now()}-${fileNamePDF}`;
 
-    try {
-      // Read the file content as base64
-      // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
-      const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      try {
+        // Read the file content as base64
+        // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
+        const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
 
-      // Convert base64 to a Uint8Array or Buffer for S3
-      // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
-      // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
-      // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
-      const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
+        // Convert base64 to a Uint8Array or Buffer for S3
+        // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
+        // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
+        // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
+        const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
 
-      const s3Client = new S3Client({
-        region: 'us-east-2', // set your region
-        credentials: {
-          accessKeyId: secretKeyId ?? '',
-          secretAccessKey: secretKey ?? '',
-        },
-      });
-
-      const response = await s3Client.send(
-        new PutObjectCommand({
-          Bucket: 'save-pdf-test',
-          Key: fileNamePDF,
-          Body: decodedFile, // Pass the decoded file content
-          ContentType: 'application/pdf', // Specify content type
-        })
-      );
-
-      if (response.ETag) {
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
-
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload',
-            text: `Archivo subido exitosamente`,
-            fromMe: false,
+        const s3Client = new S3Client({
+          region: 'us-east-2', // set your region
+          credentials: {
+            accessKeyId: secretKeyId ?? '',
+            secretAccessKey: secretKey ?? '',
           },
-        ]);
-        sendMsg(url, input);
+        });
+
+        const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: 'save-pdf-test',
+            Key: fileNamePDF,
+            Body: decodedFile, // Pass the decoded file content
+            ContentType: 'application/pdf', // Specify content type
+          })
+        );
+
+        if (response.ETag) {
+          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
+
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload',
+              text: `Archivo subido exitosamente`,
+              fromMe: false,
+            },
+          ]);
+          sendMsg(url, input);
+        }
+      } catch (err) {
+        if (err instanceof Error) {
+          console.log('error while uploading', err); // Log the full error for debugging
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload-error',
+              text: `Error al subir el archivo: ${err.message}`,
+              fromMe: false,
+            },
+          ]);
+        }
+      } finally {
+        // Optional: Clean up the cached file if you don't need it anymore
+        // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
       }
-    } catch (err) {
-      if (err instanceof Error) {
-        console.log('error while uploading', err); // Log the full error for debugging
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload-error',
-            text: `Error al subir el archivo: ${err.message}`,
-            fromMe: false,
-          },
-        ]);
-      }
-    } finally {
-      // Optional: Clean up the cached file if you don't need it anymore
-      // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
-    }
-  } else {
-    setMsgs(cur => [
-      ...cur,
+    } else {
+      setMsgs(cur => [
+        ...cur,
         {
           id: Date.now().toString() + '-upload-cancel',
           text: 'Selección de archivo cancelada.',
@@ -347,7 +370,7 @@ export default function Index() {
       alert('Las horas deben ser un número entre 1 y 24.');
       return;
     }
-    const start = Number(taskStartHour);
+    let start = Number(taskStartHour);
     if (isNaN(start) || start < 0 || start > 23) {
       alert('La hora de inicio debe estar entre 0 y 23.');
       return;
@@ -355,6 +378,9 @@ export default function Index() {
 
     const end = start + duration;
 
+    // Check for conflicts with existing tasks
+    let newStartHour = start;
+    let conflictDetected = false;
     for (const t of tasks) {
       if (isEditing && selectedTask && t.id === selectedTask.id) continue;
 
@@ -362,30 +388,77 @@ export default function Index() {
       const tEnd = t.startHour + t.hours;
 
       if (!(end <= tStart || start >= tEnd)) {
-        alert(
-          `Conflicto con tarea "${t.name}" programada de ${tStart}:00 a ${tEnd}:00`
+        conflictDetected = true;
+        break;
+      }
+    }
+
+    if (conflictDetected) {
+      // If there's a conflict, try to find the next available slot
+      const suggestedStart = findNextAvailableHour(duration, tasks);
+      if (suggestedStart !== -1) {
+        Alert.alert(
+          "Conflicto de Tareas",
+          `La tarea "${taskName.trim()}" entra en conflicto con una tarea existente. ¿Deseas moverla a las ${suggestedStart}:00?`,
+          [
+            {
+              text: "Cancelar",
+              style: "cancel",
+              onPress: () => {
+                // Do nothing, let the user manually adjust or cancel
+              }
+            },
+            {
+              text: "Mover",
+              onPress: () => {
+                newStartHour = suggestedStart;
+                // Proceed with saving after adjusting
+                const taskToSave: Task = isEditing && selectedTask
+                  ? {
+                    ...selectedTask,
+                    name: taskName.trim(),
+                    type: taskType,
+                    description: taskDescription.trim(),
+                    hours: duration,
+                    startHour: newStartHour,
+                  }
+                  : {
+                    id: Date.now().toString(),
+                    name: taskName.trim(),
+                    type: taskType,
+                    description: taskDescription.trim(),
+                    hours: duration,
+                    startHour: newStartHour,
+                  };
+
+                if (isEditing && selectedTask) {
+                  setTasks(cur => cur.map(t => t.id === selectedTask.id ? taskToSave : t));
+                } else {
+                  setTasks(cur => [...cur, taskToSave]);
+                }
+                resetAndCloseModal();
+              }
+            }
+          ]
         );
+        return; // Prevent immediate save, wait for user's decision
+      } else {
+        Alert.alert("Conflicto de Tareas", "No hay espacio disponible para esta tarea sin conflictos.");
         return;
       }
     }
 
-    if (isEditing && selectedTask) {
-      setTasks(cur =>
-        cur.map(t =>
-          t.id === selectedTask.id
-            ? {
-                ...t,
-                name: taskName.trim(),
-                type: taskType,
-                description: taskDescription.trim(),
-                hours: duration,
-                startHour: start,
-              }
-            : t
-        )
-      );
-    } else {
-      const newTask: Task = {
+
+    const taskToSave: Task = isEditing && selectedTask
+      ? {
+        ...selectedTask,
+        name: taskName.trim(),
+        type: taskType,
+        description: taskDescription.trim(),
+        hours: duration,
+        startHour: start,
+      }
+      : {
         id: Date.now().toString(),
         name: taskName.trim(),
         type: taskType,
@@ -393,9 +466,23 @@ export default function Index() {
         hours: duration,
         startHour: start,
       };
-      setTasks(cur => [...cur, newTask]);
+
+    if (isEditing && selectedTask) {
+      setTasks(cur =>
+        cur.map(t =>
+          t.id === selectedTask.id
+            ? taskToSave
+            : t
+        )
+      );
+    } else {
+      setTasks(cur => [...cur, taskToSave]);
     }
 
+    resetAndCloseModal();
+  };
+
+  const resetAndCloseModal = () => {
     setTaskName('');
     setTaskType('ocio');
     setTaskDescription('');
@@ -404,7 +491,7 @@ export default function Index() {
     setSelectedTask(null);
     setIsEditing(false);
     setModalVisible(false);
-  };
+  }
 
   const handleEdit = () => {
     if (selectedTask) {
@@ -462,29 +549,50 @@ export default function Index() {
   };
 
   const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
-  // Convert ProcessedTask to Task type for the main task list
-  const newTask: Task = {
-    id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
-    name: taskToAccept.tarea,
-    type: 'general', // You might want to infer or ask for the type
-    // Changed this line: Use taskToAccept.descripcion for the description
-    description: taskToAccept.descripcion || '',
-    hours: 1, // Default, you might want AI to provide this or ask the user
-    startHour: 0, // Default, you might want AI to provide this or ask the user
+    // Find the next available start hour for the AI task
+    const proposedStartHour = 0; // Start checking from 0
+    const nextAvailableStartHour = findNextAvailableHour(taskToAccept.horas, tasks);
+
+    if (nextAvailableStartHour === -1) {
+      Alert.alert('Sin Espacio', `No hay suficiente espacio en el horario para la tarea "${taskToAccept.tarea}".`);
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + `-no-space-${taskToAccept.insertId}`,
+          text: `No hay espacio disponible para la tarea "${taskToAccept.tarea}".`,
+          fromMe: false,
+        },
+      ]);
+      // Optionally remove it from the approval list if no space
+      setAiProcessedTasks(cur =>
+        cur.filter(task => task.insertId !== taskToAccept.insertId)
+      );
+      return;
+    }
+
+    const newTask: Task = {
+      id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
+      name: taskToAccept.tarea,
+      type: 'general', // AI tasks are generally 'general' type
+      description: taskToAccept.tiempoEstimado || '',
+      hours: taskToAccept.horas, // Use 'horas' from the AI response
+      startHour: nextAvailableStartHour, // Assign the found available start hour
+    };
+
+    setTasks(cur => [...cur, newTask]);
+    setAiProcessedTasks(cur =>
+      cur.filter(task => task.insertId !== taskToAccept.insertId)
+    );
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
+        text: `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`,
+        fromMe: false,
+      },
+    ]);
   };
-  setTasks(cur => [...cur, newTask]);
-  setAiProcessedTasks(cur =>
-    cur.filter(task => task.insertId !== taskToAccept.insertId)
-  );
-  setMsgs(cur => [
-    ...cur,
-    {
-      id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
-      text: `Tarea "${taskToAccept.tarea}" aceptada.`,
-      fromMe: false,
-    },
-  ]);
-};
+
 
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
     try {
@@ -567,6 +675,7 @@ export default function Index() {
       alert('Error de conexión al intentar cerrar sesión.');
     }
   };
+
 
   const FechaText = styled.Text`
     font-size: 18px;
