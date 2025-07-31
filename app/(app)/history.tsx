@@ -87,6 +87,7 @@ const Bubble = styled.View<BubbleProps>`
   border-radius: 12px;
 align-self: ${(props: BubbleProps) => (props.fromMe ? 'flex-end' : 'flex-start')};
 background-color: ${(props: BubbleProps) => (props.fromMe ? `${colors.primary}33` : '#eee')};
+
 `;
 
 const BubbleText = styled.Text`
