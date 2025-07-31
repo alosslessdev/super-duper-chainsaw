@@ -345,6 +345,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
         let horas = tareasJson[horasKey];
 
         // Validar y convertir 'horas' a un entero, o asignar un valor por defecto (3)
+        // Si es un número (entero o decimal), redondear hacia arriba
         if (typeof horas === 'string') {
           const horasFloat = parseFloat(horas); // Usar parseFloat para manejar decimales
           if (isNaN(horasFloat)) {
