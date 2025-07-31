@@ -28,18 +28,18 @@ const formattedDate = today.toLocaleDateString('es-ES', {
 
 type Task = {
   id: string;
-  name: string;
-  type: string;
-  description: string;
-  hours: number; // duración en horas
-  startHour: number; // hora de inicio 0-23
+  name: string; // Maps to 'titulo'
+  type: string; // Maps to 'tipo'
+  description: string; // Maps to 'descripcion'
+  hours: number; // Maps to 'horas'
+  startHour: number; // Derived from 'fecha_inicio'
 };
 
 type ProcessedTask = {
-  tarea: string;
-  tiempoEstimado?: string;
-  horas: number; // Added 'horas' from backend schema
-  insertId: number;
+  tarea: string; // AI's suggested task name
+  tiempoEstimado?: string; // AI's suggested estimated time (can map to description)
+  horas: number; // Duration in hours from AI
+  insertId: number; // ID for the processed task
   error?: string;
 };
 
@@ -104,16 +104,20 @@ export default function Index() {
 
       if (response.ok) {
         const data = await response.json();
-        // Assuming data is an array of tasks from the server.
-        // You might need to map the server response to your `Task` type if different.
-        const loadedTasks: Task[] = data.map((serverTask: any) => ({
-          id: serverTask.pk.toString(), // Ensure ID is string
-          name: serverTask.name,
-          type: serverTask.type || 'general', // Default to 'general' if not provided
-          description: serverTask.descripcion || '',
-          hours: serverTask.hours || 1,
-          startHour: serverTask.startHour || 0,
-        }));
+        const loadedTasks: Task[] = data.map((serverTask: any) => {
+          // Parse fecha_inicio to get the hour
+          const startDate = new Date(serverTask.fecha_inicio);
+          const startHour = startDate.getHours();
+
+          return {
+            id: serverTask.pk.toString(), // Use 'pk' as the ID
+            name: serverTask.titulo, // Map 'titulo' to 'name'
+            type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
+            description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
+            hours: serverTask.horas || 1, // Map 'horas' directly
+            startHour: startHour || 0, // Use the derived start hour
+          };
+        });
         setTasks(loadedTasks);
       } else {
         const errorData = await response.json();
@@ -136,14 +140,17 @@ export default function Index() {
 
   // Helper function to find the next available start hour for a task
   const findNextAvailableHour = useCallback((duration: number, existingTasks: Task[]): number => {
+    // Sort tasks by start hour to ensure correct conflict checking
+    const sortedTasks = [...existingTasks].sort((a, b) => a.startHour - b.startHour);
+
     for (let hour = 0; hour <= 24 - duration; hour++) {
       let isConflict = false;
       const newEnd = hour + duration;
-      for (const existingTask of existingTasks) {
+      for (const existingTask of sortedTasks) {
         const existingStart = existingTask.startHour;
         const existingEnd = existingTask.startHour + existingTask.hours;
 
-        // Check for overlap
+        // Check for overlap: new task starts before existing task ends, AND new task ends after existing task starts
         if (!(newEnd <= existingStart || hour >= existingEnd)) {
           isConflict = true;
           break;
@@ -356,46 +363,54 @@ export default function Index() {
     setModalVisible(true);
   };
 
-  const saveTask = () => {
+  const saveTask = async () => { // Made async to handle API calls
     if (!taskName.trim() || taskName.length > 20) {
-      alert('El nombre debe tener máximo 20 caracteres.');
+      Alert.alert('Error', 'El nombre debe tener máximo 20 caracteres.');
       return;
     }
     if (taskDescription.length > 50) {
-      alert('La descripción debe tener máximo 50 caracteres.');
+      Alert.alert('Error', 'La descripción debe tener máximo 50 caracteres.');
       return;
     }
     const duration = Number(taskHours);
     if (isNaN(duration) || duration <= 0 || duration > 24) {
-      alert('Las horas deben ser un número entre 1 y 24.');
+      Alert.alert('Error', 'Las horas deben ser un número entre 1 y 24.');
       return;
     }
     let start = Number(taskStartHour);
     if (isNaN(start) || start < 0 || start > 23) {
-      alert('La hora de inicio debe estar entre 0 y 23.');
+      Alert.alert('Error', 'La hora de inicio debe estar entre 0 y 23.');
       return;
     }
 
-    const end = start + duration;
+    // Adjust for date if necessary, assuming all tasks are for the current day for startHour logic
+    const today = new Date();
+    today.setHours(start, 0, 0, 0); // Set to the start hour for today
+    const fecha_inicio = today.toISOString(); // Format for backend
+
+    const endDate = new Date(today);
+    endDate.setHours(start + duration, 0, 0, 0);
+    const fecha_fin = endDate.toISOString(); // Format for backend
 
     // Check for conflicts with existing tasks
     let newStartHour = start;
     let conflictDetected = false;
-    for (const t of tasks) {
-      if (isEditing && selectedTask && t.id === selectedTask.id) continue;
+    // We pass `tasks` directly to `findNextAvailableHour` for its internal logic
+    const suggestedStart = findNextAvailableHour(duration, tasks);
 
+    // If we are editing, we need to exclude the task being edited from conflict checks
+    const tasksToCheck = isEditing && selectedTask ? tasks.filter(t => t.id !== selectedTask.id) : tasks;
+    for (const t of tasksToCheck) {
       const tStart = t.startHour;
       const tEnd = t.startHour + t.hours;
 
-      if (!(end <= tStart || start >= tEnd)) {
+      if (!( (start + duration) <= tStart || start >= tEnd)) {
         conflictDetected = true;
         break;
       }
     }
 
     if (conflictDetected) {
-      // If there's a conflict, try to find the next available slot
-      const suggestedStart = findNextAvailableHour(duration, tasks);
       if (suggestedStart !== -1) {
         Alert.alert(
           "Conflicto de Tareas",
@@ -410,33 +425,60 @@ export default function Index() {
             },
             {
               text: "Mover",
-              onPress: () => {
+              onPress: async () => { // Make this onPress async
                 newStartHour = suggestedStart;
-                // Proceed with saving after adjusting
-                const taskToSave: Task = isEditing && selectedTask
-                  ? {
-                    ...selectedTask,
-                    name: taskName.trim(),
-                    type: taskType,
-                    description: taskDescription.trim(),
-                    hours: duration,
-                    startHour: newStartHour,
-                  }
-                  : {
-                    id: Date.now().toString(),
-                    name: taskName.trim(),
-                    type: taskType,
-                    description: taskDescription.trim(),
-                    hours: duration,
-                    startHour: newStartHour,
-                  };
+                // Re-calculate fecha_inicio and fecha_fin for the suggested start hour
+                const newToday = new Date();
+                newToday.setHours(newStartHour, 0, 0, 0);
+                const new_fecha_inicio = newToday.toISOString();
 
-                if (isEditing && selectedTask) {
-                  setTasks(cur => cur.map(t => t.id === selectedTask.id ? taskToSave : t));
-                } else {
-                  setTasks(cur => [...cur, taskToSave]);
+                const newEndDate = new Date(newToday);
+                newEndDate.setHours(newStartHour + duration, 0, 0, 0);
+                const new_fecha_fin = newEndDate.toISOString();
+
+
+                const taskPayload = {
+                  titulo: taskName.trim(),
+                  tipo: taskType,
+                  descripcion: taskDescription.trim(),
+                  horas: duration,
+                  fecha_inicio: new_fecha_inicio,
+                  fecha_fin: new_fecha_fin,
+                  usuario: getUserId(), // Ensure userId is passed
+                  prioridad: 'general', // You might want to make this dynamic
+                  tiempo_estimado: taskDescription.trim(),
+                  hecho: false, // Default value
+                };
+
+                try {
+                  const method = isEditing && selectedTask ? 'PUT' : 'POST';
+                  const url = isEditing && selectedTask
+                    ? `http://0000243.xyz:8080/tareas/${selectedTask.id}`
+                    : 'http://0000243.xyz:8080/tareas'; //to fix
+
+                  const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Cookie: sessionCookie,
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(taskPayload),
+                  });
+
+                  if (response.ok) {
+                    Alert.alert('Éxito', 'Tarea guardada exitosamente.');
+                    // Re-fetch tasks to update the UI with the latest data from the server
+                    fetchTasks();
+                    resetAndCloseModal();
+                  } else {
+                    const errorData = await response.json();
+                    Alert.alert('Error', `Error al guardar la tarea: ${errorData.error || response.statusText}`);
+                  }
+                } catch (err) {
+                  console.error('Save task error:', err);
+                  Alert.alert('Error', 'No se pudo conectar al servidor para guardar la tarea.');
                 }
-                resetAndCloseModal();
               }
             }
           ]
@@ -448,38 +490,48 @@ export default function Index() {
       }
     }
 
+    // If no conflict, or user decided to save after conflict resolution
+    const taskPayload = {
+      titulo: taskName.trim(),
+      tipo: taskType,
+      descripcion: taskDescription.trim(),
+      horas: duration,
+      fecha_inicio: fecha_inicio,
+      fecha_fin: fecha_fin,
+      usuario: getUserId(), // Ensure userId is passed
+      prioridad: 'general', // You might want to make this dynamic
+      tiempo_estimado: taskDescription.trim(),
+      hecho: false, // Default value
+    };
 
-    const taskToSave: Task = isEditing && selectedTask
-      ? {
-        ...selectedTask,
-        name: taskName.trim(),
-        type: taskType,
-        description: taskDescription.trim(),
-        hours: duration,
-        startHour: start,
+    try {
+      const method = isEditing && selectedTask ? 'PUT' : 'POST';
+      const url = isEditing && selectedTask
+        ? `http://0000243.xyz:8080/tareas/${selectedTask.id}`
+        : 'http://0000243.xyz:8080/tareas';
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        credentials: 'include',
+        body: JSON.stringify(taskPayload),
+      });
+
+      if (response.ok) {
+        Alert.alert('Éxito', 'Tarea guardada exitosamente.');
+        fetchTasks(); // Re-fetch tasks to update the UI
+        resetAndCloseModal();
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', `Error al guardar la tarea: ${errorData.error || response.statusText}`);
       }
-      : {
-        id: Date.now().toString(),
-        name: taskName.trim(),
-        type: taskType,
-        description: taskDescription.trim(),
-        hours: duration,
-        startHour: start,
-      };
-
-    if (isEditing && selectedTask) {
-      setTasks(cur =>
-        cur.map(t =>
-          t.id === selectedTask.id
-            ? taskToSave
-            : t
-        )
-      );
-    } else {
-      setTasks(cur => [...cur, taskToSave]);
+    } catch (err) {
+      console.error('Save task error:', err);
+      Alert.alert('Error', 'No se pudo conectar al servidor para guardar la tarea.');
     }
-
-    resetAndCloseModal();
   };
 
   const resetAndCloseModal = () => {
@@ -528,7 +580,8 @@ export default function Index() {
                 );
 
                 if (response.ok) {
-                  setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
+                  // Instead of directly manipulating state, re-fetch tasks
+                  fetchTasks();
                   Alert.alert('Éxito', 'Tarea eliminada exitosamente.');
                 } else {
                   const errorData = await response.json();
@@ -548,9 +601,8 @@ export default function Index() {
     }
   };
 
-  const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
+  const handleAcceptProcessedTask = async (taskToAccept: ProcessedTask) => {
     // Find the next available start hour for the AI task
-    const proposedStartHour = 0; // Start checking from 0
     const nextAvailableStartHour = findNextAvailableHour(taskToAccept.horas, tasks);
 
     if (nextAvailableStartHour === -1) {
@@ -563,34 +615,82 @@ export default function Index() {
           fromMe: false,
         },
       ]);
-      // Optionally remove it from the approval list if no space
       setAiProcessedTasks(cur =>
         cur.filter(task => task.insertId !== taskToAccept.insertId)
       );
       return;
     }
 
-    const newTask: Task = {
-      id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
-      name: taskToAccept.tarea,
-      type: 'general', // AI tasks are generally 'general' type
-      description: taskToAccept.tiempoEstimado || '',
-      hours: taskToAccept.horas, // Use 'horas' from the AI response
-      startHour: nextAvailableStartHour, // Assign the found available start hour
+    const today = new Date();
+    today.setHours(nextAvailableStartHour, 0, 0, 0);
+    const fecha_inicio = today.toISOString();
+
+    const endDate = new Date(today);
+    endDate.setHours(nextAvailableStartHour + taskToAccept.horas, 0, 0, 0);
+    const fecha_fin = endDate.toISOString();
+
+    const taskPayload = {
+      titulo: taskToAccept.tarea,
+      tipo: 'general',
+      descripcion: taskToAccept.tiempoEstimado || '',
+      horas: taskToAccept.horas,
+      fecha_inicio: fecha_inicio,
+      fecha_fin: fecha_fin,
+      usuario: getUserId(),
+      prioridad: 'general',
+      tiempo_estimado: taskToAccept.tiempoEstimado || '',
+      hecho: false,
     };
 
-    setTasks(cur => [...cur, newTask]);
-    setAiProcessedTasks(cur =>
-      cur.filter(task => task.insertId !== taskToAccept.insertId)
-    );
-    setMsgs(cur => [
-      ...cur,
-      {
-        id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
-        text: `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`,
-        fromMe: false,
-      },
-    ]);
+    try {
+      const response = await fetch('http://0000243.xyz:8080/tareas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        credentials: 'include',
+        body: JSON.stringify(taskPayload),
+      });
+
+      if (response.ok) {
+        Alert.alert('Éxito', `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`);
+        fetchTasks(); // Re-fetch tasks to update the UI
+        setAiProcessedTasks(cur =>
+          cur.filter(task => task.insertId !== taskToAccept.insertId)
+        );
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
+            text: `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`,
+            fromMe: false,
+          },
+        ]);
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', `Error al aceptar la tarea: ${errorData.error || response.statusText}`);
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + `-accept-error-${taskToAccept.insertId}`,
+            text: `Error al aceptar la tarea "${taskToAccept.tarea}": ${errorData.error || response.statusText}.`,
+            fromMe: false,
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error('Accept processed task error:', err);
+      Alert.alert('Error', 'No se pudo conectar al servidor para aceptar la tarea.');
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + `-accept-fetch-error-${taskToAccept.insertId}`,
+          text: `Error de conexión al intentar aceptar la tarea "${taskToAccept.tarea}".`,
+          fromMe: false,
+        },
+      ]);
+    }
   };
 
 
@@ -692,6 +792,7 @@ export default function Index() {
     padding: 10px;
     margin-bottom: 10px;
   `;
+
 
   return (
     <>
