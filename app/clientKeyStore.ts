@@ -15,7 +15,8 @@ export function setAwsKeys(id: string, key: string, cookie: string, userId: numb
 }
 
 export function getAwsKeys() {
-  return { secretKeyId, secretKey, sessionCookie };
+  return { secretKeyId, secretKey, sessionCookie, userId: _userId }; // Export userId, 
+                                                                     // inconsistent use of variables it could just be userid
 }
 
 export const setGoogleAccessToken = (token: string) => {
@@ -61,6 +62,6 @@ export const setUserId = (userId: number | null) => {
  * Retrieves the user's ID.
  * @returns The user's ID or null if not set.
  */
-export const getUserId = () => {
+export const getUserId = () => { 
   return _userId;
 };

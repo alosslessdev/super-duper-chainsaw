@@ -4,18 +4,18 @@ import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Alert } from 'react-native';
 import styled from 'styled-components/native';
 import AnalogClock from '../(app)/analogClock';
-import { getAwsKeys } from '../clientKeyStore';
+import { getAwsKeys, getUserId } from '../clientKeyStore'; // Import getUserId
 import { colors } from '../styles/colors';
 import * as FileSystem from 'expo-file-system';
 
 const { sessionCookie } = getAwsKeys();
 let url: string; //url para archivo en AWS s3
 
-const taskTypes = ['ocio', 'importante', 'liviana', 'descanso'];
+const taskTypes = ['ocio', 'importante', 'liviana', 'descanso', 'general']; // Added 'general' for AI tasks
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
 const today = new Date();
 const formattedDate = today.toLocaleDateString('es-ES', {
@@ -78,6 +78,60 @@ export default function Index() {
   const [aiProcessedTasks, setAiProcessedTasks] = useState<ProcessedTask[]>([]);
   const [aiApprovalModalVisible, setAiApprovalModalVisible] = useState(false);
 
+  // State for loading tasks from the server
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+
+  // Function to fetch tasks from the server
+  const fetchTasks = useCallback(async () => {
+    const userId = getUserId();
+    if (!userId) {
+      console.log('User ID not available, cannot fetch tasks.');
+      return;
+    }
+
+    setIsLoadingTasks(true);
+    try {
+      const response = await fetch(`http://0000243.xyz:8080/tareas/de/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Assuming data is an array of tasks from the server.
+        // You might need to map the server response to your `Task` type if different.
+        const loadedTasks: Task[] = data.map((serverTask: any) => ({
+          id: serverTask.id.toString(), // Ensure ID is string
+          name: serverTask.name,
+          type: serverTask.type || 'general', // Default to 'general' if not provided
+          description: serverTask.description || '',
+          hours: serverTask.hours || 1,
+          startHour: serverTask.startHour || 0,
+        }));
+        setTasks(loadedTasks);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fetch tasks:', errorData.error || response.statusText);
+        Alert.alert('Error', `No se pudieron cargar las tareas: ${errorData.error || 'Error desconocido'}`);
+      }
+    } catch (error) {
+      console.error('Network error fetching tasks:', error);
+      Alert.alert('Error', 'No se pudo conectar al servidor para cargar las tareas.');
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  }, [sessionCookie]);
+
+  // Fetch tasks on component mount
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+
   // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
@@ -120,7 +174,7 @@ export default function Index() {
               ...cur,
               {
                 id: Date.now().toString() + '-ia-prompt',
-                text: 'He recibido nuevas tareas de la IA. Por favor, revisa y aprueba cada una.',
+                text: 'Has recibido nuevas tareas de la IA. Por favor, revisa y aprueba cada una.',
                 fromMe: false,
               },
             ]);
@@ -216,7 +270,7 @@ export default function Index() {
       );
 
       if (response.ETag) {
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; 
+        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
 
         setMsgs(cur => [
           ...cur,
@@ -358,11 +412,52 @@ export default function Index() {
     setActionModalVisible(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (selectedTask) {
-      setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
+      // Confirm deletion with the user
+      Alert.alert(
+        "Eliminar Tarea",
+        `¿Estás seguro de que quieres eliminar la tarea "${selectedTask.name}"?`,
+        [
+          {
+            text: "Cancelar",
+            style: "cancel",
+            onPress: () => setActionModalVisible(false),
+          },
+          {
+            text: "Eliminar",
+            onPress: async () => {
+              try {
+                const response = await fetch(
+                  `http://0000243.xyz:8080/tareas/${selectedTask.id}`, // Use selectedTask.id
+                  {
+                    method: 'DELETE',
+                    headers: {
+                      Cookie: sessionCookie,
+                    },
+                    credentials: 'include',
+                  }
+                );
+
+                if (response.ok) {
+                  setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
+                  Alert.alert('Éxito', 'Tarea eliminada exitosamente.');
+                } else {
+                  const errorData = await response.json();
+                  Alert.alert('Error', `Error al eliminar la tarea: ${errorData.error || response.statusText}`);
+                }
+              } catch (err) {
+                console.error('Delete task error:', err);
+                Alert.alert('Error', 'No se pudo conectar al servidor para eliminar la tarea.');
+              } finally {
+                setActionModalVisible(false);
+              }
+            },
+          },
+        ],
+        { cancelable: true }
+      );
     }
-    setActionModalVisible(false);
   };
 
   const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
@@ -680,27 +775,35 @@ export default function Index() {
           </Modal>
 
           {/* Lista de tareas */}
-          <FlatList
-            data={tasks}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => (
-              <TouchableTaskItem
-                onPress={() => {
-                  setSelectedTask(item);
-                  setActionModalVisible(true);
-                }}
-              >
-                <TaskName>{item.name}</TaskName>
-                <TaskType>{item.type}</TaskType>
-                <TaskDesc>{item.description}</TaskDesc>
-                <TaskHours>
-                  De {item.startHour}:00 a {item.startHour + item.hours}:00 (
-                  {item.hours} h)
-                </TaskHours>
-              </TouchableTaskItem>
-            )}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          />
+          {isLoadingTasks ? (
+            <LoadingText>Cargando tareas...</LoadingText>
+          ) : (
+            <FlatList
+              data={tasks}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => (
+                <TouchableTaskItem
+                  onPress={() => {
+                    setSelectedTask(item);
+                    setActionModalVisible(true);
+                  }}
+                >
+                  <TaskName>{item.name}</TaskName>
+                  <TaskType>{item.type}</TaskType>
+                  <TaskDesc>{item.description}</TaskDesc>
+                  <TaskHours>
+                    De {item.startHour}:00 a {item.startHour + item.hours}:00 (
+                    {item.hours} h)
+                  </TaskHours>
+                </TouchableTaskItem>
+              )}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              /* ListEmptyComponent={() => (
+                <EmptyListText>No tienes tareas agendadas. ¡Agrega una!</EmptyListText>
+              )} */
+            />
+          )}
+
 
           {/* Botón flotante para abrir chat */}
           {!chatVisible && (
@@ -1010,4 +1113,18 @@ const AITaskItem = styled.View`
   margin-bottom: 10px;
   border-width: 1px;
   border-color: #eee;
+`;
+
+const LoadingText = styled.Text`
+  text-align: center;
+  margin-top: 20px;
+  font-size: 16px;
+  color: #555;
+`;
+
+const EmptyListText = styled.Text`
+  text-align: center;
+  margin-top: 20px;
+  font-size: 16px;
+  color: #777;
 `;
