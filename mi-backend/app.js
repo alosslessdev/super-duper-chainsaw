@@ -256,7 +256,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
           `http://0000243.xyz:8000/secure-data`, // URL del servicio de IA
           {
             pdf_url: req.body.pdf_url || '', // URL del PDF (opcional)
-            question: 'Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.' +
+            question: req.body.question || 'Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.' +
             ' Si hay una lista de puntos a hacer, muestra la lista.'  // Pregunta para la IA, deberia mandarlo el frontend 
                                                                       // pero el frontend no lo manda cuando se sube un pdf
           },
