@@ -1,3 +1,4 @@
+
 import 'react-native-get-random-values';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
@@ -27,18 +28,18 @@ const formattedDate = today.toLocaleDateString('es-ES', {
 
 type Task = {
   id: string;
-  name: string;
-  type: string;
-  description: string;
-  hours: number; // duración en horas
-  startHour: number; // hora de inicio 0-23
+  name: string; // Maps to 'titulo'
+  type: string; // Maps to 'tipo'
+  description: string; // Maps to 'descripcion'
+  hours: number; // Maps to 'horas'
+  startHour: number; // Derived from 'fecha_inicio'
 };
 
 type ProcessedTask = {
-  tarea: string;
-  tiempoEstimado?: string;
-  descripcion?: string; // Add this field for the AI's description
-  insertId: number;
+  tarea: string; // AI's suggested task name
+  tiempoEstimado?: string; // AI's suggested estimated time (can map to description)
+  horas: number; // Duration in hours from AI
+  insertId: number; // ID for the processed task
   error?: string;
 };
 
@@ -103,16 +104,20 @@ export default function Index() {
 
       if (response.ok) {
         const data = await response.json();
-        // Assuming data is an array of tasks from the server.
-        // You might need to map the server response to your `Task` type if different.
-        const loadedTasks: Task[] = data.map((serverTask: any) => ({
-          id: serverTask.pk.toString(), // Ensure ID is string
-          name: serverTask.name,
-          type: serverTask.type || 'general', // Default to 'general' if not provided
-          description: serverTask.descripcion || '',
-          hours: serverTask.hours || 1,
-          startHour: serverTask.startHour || 0,
-        }));
+        const loadedTasks: Task[] = data.map((serverTask: any) => {
+          // Parse fecha_inicio to get the hour
+          const startDate = new Date(serverTask.fecha_inicio);
+          const startHour = startDate.getHours();
+
+          return {
+            id: serverTask.pk.toString(), // Use 'pk' as the ID
+            name: serverTask.titulo, // Map 'titulo' to 'name'
+            type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
+            description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
+            hours: serverTask.horas || 1, // Map 'horas' directly
+            startHour: startHour || 0, // Use the derived start hour
+          };
+        });
         setTasks(loadedTasks);
       } else {
         const errorData = await response.json();
@@ -133,25 +138,50 @@ export default function Index() {
   }, [fetchTasks]);
 
 
+  // Helper function to find the next available start hour for a task
+  const findNextAvailableHour = useCallback((duration: number, existingTasks: Task[]): number => {
+    // Sort tasks by start hour to ensure correct conflict checking
+    const sortedTasks = [...existingTasks].sort((a, b) => a.startHour - b.startHour);
+
+    for (let hour = 0; hour <= 24 - duration; hour++) {
+      let isConflict = false;
+      const newEnd = hour + duration;
+      for (const existingTask of sortedTasks) {
+        const existingStart = existingTask.startHour;
+        const existingEnd = existingTask.startHour + existingTask.hours;
+
+        // Check for overlap: new task starts before existing task ends, AND new task ends after existing task starts
+        if (!(newEnd <= existingStart || hour >= existingEnd)) {
+          isConflict = true;
+          break;
+        }
+      }
+      if (!isConflict) {
+        return hour;
+      }
+    }
+    return -1; // No available slot found
+  }, []);
+
   // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
-        setMsgs(cur => [
-            ...cur,
-            {
-                id: Date.now().toString() + '-ai-processing-start',
-                text: 'Procesando archivo con IA...',
-                fromMe: false,
-            },
-        ]);
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ai-processing-start',
+          text: 'Procesando archivo con IA...',
+          fromMe: false,
+        },
+      ]);
     } else {
-        const userMsg: Msg = {
-            id: Date.now().toString(),
-            text: question.trim(),
-            fromMe: true,
-        };
-        setMsgs(cur => [...cur, userMsg]);
-        setInput('');
+      const userMsg: Msg = {
+        id: Date.now().toString(),
+        text: question.trim(),
+        fromMe: true,
+      };
+      setMsgs(cur => [...cur, userMsg]);
+      setInput('');
     }
 
     setTimeout(async () => {
@@ -223,85 +253,85 @@ export default function Index() {
   };
 
   const uploadFile = async () => {
-  let fileNamePDF: string;
-  let PDFfileUri: string; // Renamed for clarity
+    let fileNamePDF: string;
+    let PDFfileUri: string; // Renamed for clarity
 
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/pdf', // Specify PDF type for better filtering
-    copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
-  });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf', // Specify PDF type for better filtering
+      copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
+    });
 
-  const { secretKeyId, secretKey } = getAwsKeys();
+    const { secretKeyId, secretKey } = getAwsKeys();
 
-  if (result.assets && result.assets.length > 0) {
-    PDFfileUri = result.assets[0].uri;
-    fileNamePDF = result.assets[0].name;
+    if (result.assets && result.assets.length > 0) {
+      PDFfileUri = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
 
-    // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
-    fileNamePDF = `${Date.now()}-${fileNamePDF}`;
+      // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
+      fileNamePDF = `${Date.now()}-${fileNamePDF}`;
 
-    try {
-      // Read the file content as base64
-      // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
-      const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      try {
+        // Read the file content as base64
+        // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
+        const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
 
-      // Convert base64 to a Uint8Array or Buffer for S3
-      // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
-      // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
-      // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
-      const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
+        // Convert base64 to a Uint8Array or Buffer for S3
+        // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
+        // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
+        // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
+        const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
 
-      const s3Client = new S3Client({
-        region: 'us-east-2', // set your region
-        credentials: {
-          accessKeyId: secretKeyId ?? '',
-          secretAccessKey: secretKey ?? '',
-        },
-      });
-
-      const response = await s3Client.send(
-        new PutObjectCommand({
-          Bucket: 'save-pdf-test',
-          Key: fileNamePDF,
-          Body: decodedFile, // Pass the decoded file content
-          ContentType: 'application/pdf', // Specify content type
-        })
-      );
-
-      if (response.ETag) {
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
-
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload',
-            text: `Archivo subido exitosamente`,
-            fromMe: false,
+        const s3Client = new S3Client({
+          region: 'us-east-2', // set your region
+          credentials: {
+            accessKeyId: secretKeyId ?? '',
+            secretAccessKey: secretKey ?? '',
           },
-        ]);
-        sendMsg(url, input);
+        });
+
+        const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: 'save-pdf-test',
+            Key: fileNamePDF,
+            Body: decodedFile, // Pass the decoded file content
+            ContentType: 'application/pdf', // Specify content type
+          })
+        );
+
+        if (response.ETag) {
+          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
+
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload',
+              text: `Archivo subido exitosamente`,
+              fromMe: false,
+            },
+          ]);
+          sendMsg(url, input);
+        }
+      } catch (err) {
+        if (err instanceof Error) {
+          console.log('error while uploading', err); // Log the full error for debugging
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload-error',
+              text: `Error al subir el archivo: ${err.message}`,
+              fromMe: false,
+            },
+          ]);
+        }
+      } finally {
+        // Optional: Clean up the cached file if you don't need it anymore
+        // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
       }
-    } catch (err) {
-      if (err instanceof Error) {
-        console.log('error while uploading', err); // Log the full error for debugging
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload-error',
-            text: `Error al subir el archivo: ${err.message}`,
-            fromMe: false,
-          },
-        ]);
-      }
-    } finally {
-      // Optional: Clean up the cached file if you don't need it anymore
-      // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
-    }
-  } else {
-    setMsgs(cur => [
-      ...cur,
+    } else {
+      setMsgs(cur => [
+        ...cur,
         {
           id: Date.now().toString() + '-upload-cancel',
           text: 'Selección de archivo cancelada.',
@@ -333,69 +363,178 @@ export default function Index() {
     setModalVisible(true);
   };
 
-  const saveTask = () => {
+  const saveTask = async () => { // Made async to handle API calls
     if (!taskName.trim() || taskName.length > 20) {
-      alert('El nombre debe tener máximo 20 caracteres.');
+      Alert.alert('Error', 'El nombre debe tener máximo 20 caracteres.');
       return;
     }
     if (taskDescription.length > 50) {
-      alert('La descripción debe tener máximo 50 caracteres.');
+      Alert.alert('Error', 'La descripción debe tener máximo 50 caracteres.');
       return;
     }
     const duration = Number(taskHours);
     if (isNaN(duration) || duration <= 0 || duration > 24) {
-      alert('Las horas deben ser un número entre 1 y 24.');
+      Alert.alert('Error', 'Las horas deben ser un número entre 1 y 24.');
       return;
     }
-    const start = Number(taskStartHour);
+    let start = Number(taskStartHour);
     if (isNaN(start) || start < 0 || start > 23) {
-      alert('La hora de inicio debe estar entre 0 y 23.');
+      Alert.alert('Error', 'La hora de inicio debe estar entre 0 y 23.');
       return;
     }
 
-    const end = start + duration;
+    // Adjust for date if necessary, assuming all tasks are for the current day for startHour logic
+    const today = new Date();
+    today.setHours(start, 0, 0, 0); // Set to the start hour for today
+    const fecha_inicio = today.toISOString(); // Format for backend
 
-    for (const t of tasks) {
-      if (isEditing && selectedTask && t.id === selectedTask.id) continue;
+    const endDate = new Date(today);
+    endDate.setHours(start + duration, 0, 0, 0);
+    const fecha_fin = endDate.toISOString(); // Format for backend
 
+    // Check for conflicts with existing tasks
+    let newStartHour = start;
+    let conflictDetected = false;
+    // We pass `tasks` directly to `findNextAvailableHour` for its internal logic
+    const suggestedStart = findNextAvailableHour(duration, tasks);
+
+    // If we are editing, we need to exclude the task being edited from conflict checks
+    const tasksToCheck = isEditing && selectedTask ? tasks.filter(t => t.id !== selectedTask.id) : tasks;
+    for (const t of tasksToCheck) {
       const tStart = t.startHour;
       const tEnd = t.startHour + t.hours;
 
-      if (!(end <= tStart || start >= tEnd)) {
-        alert(
-          `Conflicto con tarea "${t.name}" programada de ${tStart}:00 a ${tEnd}:00`
+      if (!( (start + duration) <= tStart || start >= tEnd)) {
+        conflictDetected = true;
+        break;
+      }
+    }
+
+    if (conflictDetected) {
+      if (suggestedStart !== -1) {
+        Alert.alert(
+          "Conflicto de Tareas",
+          `La tarea "${taskName.trim()}" entra en conflicto con una tarea existente. ¿Deseas moverla a las ${suggestedStart}:00?`,
+          [
+            {
+              text: "Cancelar",
+              style: "cancel",
+              onPress: () => {
+                // Do nothing, let the user manually adjust or cancel
+              }
+            },
+            {
+              text: "Mover",
+              onPress: async () => { // Make this onPress async
+                newStartHour = suggestedStart;
+                // Re-calculate fecha_inicio and fecha_fin for the suggested start hour
+                const newToday = new Date();
+                newToday.setHours(newStartHour, 0, 0, 0);
+                const new_fecha_inicio = newToday.toISOString();
+
+                const newEndDate = new Date(newToday);
+                newEndDate.setHours(newStartHour + duration, 0, 0, 0);
+                const new_fecha_fin = newEndDate.toISOString();
+
+
+                const taskPayload = {
+                  titulo: taskName.trim(),
+                  tipo: taskType,
+                  descripcion: taskDescription.trim(),
+                  horas: duration,
+                  fecha_inicio: new_fecha_inicio,
+                  fecha_fin: new_fecha_fin,
+                  usuario: getUserId(), // Ensure userId is passed
+                  prioridad: 'general', // You might want to make this dynamic
+                  tiempo_estimado: taskDescription.trim(),
+                  hecho: false, // Default value
+                };
+
+                try {
+                  const method = isEditing && selectedTask ? 'PUT' : 'POST';
+                  const url = isEditing && selectedTask
+                    ? `http://0000243.xyz:8080/tareas/${selectedTask.id}`
+                    : 'http://0000243.xyz:8080/tareas'; //to fix
+
+                  const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Cookie: sessionCookie,
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(taskPayload),
+                  });
+
+                  if (response.ok) {
+                    Alert.alert('Éxito', 'Tarea guardada exitosamente.');
+                    // Re-fetch tasks to update the UI with the latest data from the server
+                    fetchTasks();
+                    resetAndCloseModal();
+                  } else {
+                    const errorData = await response.json();
+                    Alert.alert('Error', `Error al guardar la tarea: ${errorData.error || response.statusText}`);
+                  }
+                } catch (err) {
+                  console.error('Save task error:', err);
+                  Alert.alert('Error', 'No se pudo conectar al servidor para guardar la tarea.');
+                }
+              }
+            }
+          ]
         );
+        return; // Prevent immediate save, wait for user's decision
+      } else {
+        Alert.alert("Conflicto de Tareas", "No hay espacio disponible para esta tarea sin conflictos.");
         return;
       }
     }
 
-    if (isEditing && selectedTask) {
-      setTasks(cur =>
-        cur.map(t =>
-          t.id === selectedTask.id
-            ? {
-                ...t,
-                name: taskName.trim(),
-                type: taskType,
-                description: taskDescription.trim(),
-                hours: duration,
-                startHour: start,
-              }
-            : t
-        )
-      );
-    } else {
-      const newTask: Task = {
-        id: Date.now().toString(),
-        name: taskName.trim(),
-        type: taskType,
-        description: taskDescription.trim(),
-        hours: duration,
-        startHour: start,
-      };
-      setTasks(cur => [...cur, newTask]);
-    }
+    // If no conflict, or user decided to save after conflict resolution
+    const taskPayload = {
+      titulo: taskName.trim(),
+      tipo: taskType,
+      descripcion: taskDescription.trim(),
+      horas: duration,
+      fecha_inicio: fecha_inicio,
+      fecha_fin: fecha_fin,
+      usuario: getUserId(), // Ensure userId is passed
+      prioridad: 'general', // You might want to make this dynamic
+      tiempo_estimado: taskDescription.trim(),
+      hecho: false, // Default value
+    };
 
+    try {
+      const method = isEditing && selectedTask ? 'PUT' : 'POST';
+      const url = isEditing && selectedTask
+        ? `http://0000243.xyz:8080/tareas/${selectedTask.id}`
+        : 'http://0000243.xyz:8080/tareas';
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        credentials: 'include',
+        body: JSON.stringify(taskPayload),
+      });
+
+      if (response.ok) {
+        Alert.alert('Éxito', 'Tarea guardada exitosamente.');
+        fetchTasks(); // Re-fetch tasks to update the UI
+        resetAndCloseModal();
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', `Error al guardar la tarea: ${errorData.error || response.statusText}`);
+      }
+    } catch (err) {
+      console.error('Save task error:', err);
+      Alert.alert('Error', 'No se pudo conectar al servidor para guardar la tarea.');
+    }
+  };
+
+  const resetAndCloseModal = () => {
     setTaskName('');
     setTaskType('ocio');
     setTaskDescription('');
@@ -404,7 +543,7 @@ export default function Index() {
     setSelectedTask(null);
     setIsEditing(false);
     setModalVisible(false);
-  };
+  }
 
   const handleEdit = () => {
     if (selectedTask) {
@@ -441,7 +580,8 @@ export default function Index() {
                 );
 
                 if (response.ok) {
-                  setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
+                  // Instead of directly manipulating state, re-fetch tasks
+                  fetchTasks();
                   Alert.alert('Éxito', 'Tarea eliminada exitosamente.');
                 } else {
                   const errorData = await response.json();
@@ -461,30 +601,98 @@ export default function Index() {
     }
   };
 
-  const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
-  // Convert ProcessedTask to Task type for the main task list
-  const newTask: Task = {
-    id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
-    name: taskToAccept.tarea,
-    type: 'general', // You might want to infer or ask for the type
-    // Changed this line: Use taskToAccept.descripcion for the description
-    description: taskToAccept.descripcion || '',
-    hours: 1, // Default, you might want AI to provide this or ask the user
-    startHour: 0, // Default, you might want AI to provide this or ask the user
+  const handleAcceptProcessedTask = async (taskToAccept: ProcessedTask) => {
+    // Find the next available start hour for the AI task
+    const nextAvailableStartHour = findNextAvailableHour(taskToAccept.horas, tasks);
+
+    if (nextAvailableStartHour === -1) {
+      Alert.alert('Sin Espacio', `No hay suficiente espacio en el horario para la tarea "${taskToAccept.tarea}".`);
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + `-no-space-${taskToAccept.insertId}`,
+          text: `No hay espacio disponible para la tarea "${taskToAccept.tarea}".`,
+          fromMe: false,
+        },
+      ]);
+      setAiProcessedTasks(cur =>
+        cur.filter(task => task.insertId !== taskToAccept.insertId)
+      );
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(nextAvailableStartHour, 0, 0, 0);
+    const fecha_inicio = today.toISOString();
+
+    const endDate = new Date(today);
+    endDate.setHours(nextAvailableStartHour + taskToAccept.horas, 0, 0, 0);
+    const fecha_fin = endDate.toISOString();
+
+    const taskPayload = {
+      titulo: taskToAccept.tarea,
+      tipo: 'general',
+      descripcion: taskToAccept.tiempoEstimado || '',
+      horas: taskToAccept.horas,
+      fecha_inicio: fecha_inicio,
+      fecha_fin: fecha_fin,
+      usuario: getUserId(),
+      prioridad: 'general',
+      tiempo_estimado: taskToAccept.tiempoEstimado || '',
+      hecho: false,
+    };
+
+    try {
+      const response = await fetch('http://0000243.xyz:8080/tareas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: sessionCookie,
+        },
+        credentials: 'include',
+        body: JSON.stringify(taskPayload),
+      });
+
+      if (response.ok) {
+        Alert.alert('Éxito', `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`);
+        fetchTasks(); // Re-fetch tasks to update the UI
+        setAiProcessedTasks(cur =>
+          cur.filter(task => task.insertId !== taskToAccept.insertId)
+        );
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
+            text: `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`,
+            fromMe: false,
+          },
+        ]);
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', `Error al aceptar la tarea: ${errorData.error || response.statusText}`);
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + `-accept-error-${taskToAccept.insertId}`,
+            text: `Error al aceptar la tarea "${taskToAccept.tarea}": ${errorData.error || response.statusText}.`,
+            fromMe: false,
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error('Accept processed task error:', err);
+      Alert.alert('Error', 'No se pudo conectar al servidor para aceptar la tarea.');
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + `-accept-fetch-error-${taskToAccept.insertId}`,
+          text: `Error de conexión al intentar aceptar la tarea "${taskToAccept.tarea}".`,
+          fromMe: false,
+        },
+      ]);
+    }
   };
-  setTasks(cur => [...cur, newTask]);
-  setAiProcessedTasks(cur =>
-    cur.filter(task => task.insertId !== taskToAccept.insertId)
-  );
-  setMsgs(cur => [
-    ...cur,
-    {
-      id: Date.now().toString() + `-accepted-${taskToAccept.insertId}`,
-      text: `Tarea "${taskToAccept.tarea}" aceptada.`,
-      fromMe: false,
-    },
-  ]);
-};
+
 
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
     try {
@@ -568,6 +776,7 @@ export default function Index() {
     }
   };
 
+
   const FechaText = styled.Text`
     font-size: 18px;
     font-weight: bold;
@@ -583,6 +792,7 @@ export default function Index() {
     padding: 10px;
     margin-bottom: 10px;
   `;
+
 
   return (
     <>
