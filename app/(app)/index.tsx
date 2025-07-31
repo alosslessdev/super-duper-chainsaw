@@ -416,12 +416,12 @@ export default function Index() {
   };
 
   const saveTask = async () => { // Made async to handle API calls
-    if (!taskName.trim() || taskName.length > 20) {
-      Alert.alert('Error', 'El nombre debe tener máximo 20 caracteres.');
+    if (!taskName.trim() || taskName.length > 300) {
+      Alert.alert('Error', 'El nombre debe tener máximo 300 caracteres.');
       return;
     }
-    if (taskDescription.length > 50) {
-      Alert.alert('Error', 'La descripción debe tener máximo 50 caracteres.');
+    if (taskDescription.length > 500) {
+      Alert.alert('Error', 'La descripción debe tener máximo 500 caracteres.');
       return;
     }
     const duration = Number(taskHours);
@@ -971,7 +971,7 @@ export default function Index() {
                   {isEditing ? 'Editar tarea' : 'Agregar nueva tarea'}
                 </ModalTitle>
 
-                <InputLabel>Nombre de la tarea (max 20 caracteres):</InputLabel>
+                <InputLabel>Nombre de la tarea (max 300 caracteres):</InputLabel>
                 <TextInputStyled
                   value={taskName}
                   onChangeText={setTaskName}
@@ -991,7 +991,7 @@ export default function Index() {
                   ))}
                 </PickerStyled>
 
-                <InputLabel>Descripción (max 50 caracteres):</InputLabel>
+                <InputLabel>Descripción (max 500 caracteres):</InputLabel>
                 <TextInputStyledDescription
                   value={taskDescription}
                   onChangeText={setTaskDescription}
