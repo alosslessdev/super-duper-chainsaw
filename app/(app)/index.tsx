@@ -1,17 +1,17 @@
 
-import 'react-native-get-random-values';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { Stack, useRouter } from 'expo-router';
-import React, { useState, useEffect, useCallback } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform, Alert } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
+import 'react-native-get-random-values';
 import styled from 'styled-components/native';
 import AnalogClock from '../(app)/analogClock';
 import { getAwsKeys, getUserId } from '../clientKeyStore'; // Import getUserId
 import { colors } from '../styles/colors';
-import * as FileSystem from 'expo-file-system';
 
 const { sessionCookie } = getAwsKeys();
 let url: string; //url para archivo en AWS s3
@@ -1370,14 +1370,13 @@ const ModalButtonClose = styled.Pressable`
   align-items: center;
 `;
 
-const ModalButtonCancel = styled.Pressable`
-  background-color: #FF3B30;
-  padding: 10px 20px;
-  border-radius: 8px;
-  flex: 1; /* Added for equal button width */
-  margin: 0 5px; /* Added spacing between buttons */
-  justify-content: center; /* Center text vertically */
-  align-items: center; /* Center text horizontally */
+const ModalButtonCancel = styled.TouchableOpacity`
+  background-color: #f44336; /* A red color for a cancel button */
+  padding-vertical: 12px;     /* Add vertical padding for height */
+  padding-horizontal: 20px;   /* Add horizontal padding for width */
+  border-radius: 8px;         /* Add some rounded corners */
+  align-items: center;        /* Center the text horizontally */
+  justify-content: center;    /* Center the text vertically */
 `;
 
 const ModalButtonSave = styled.Pressable`
@@ -1401,9 +1400,9 @@ const ModalButtonComplete = styled.Pressable`
 `;
 
 const ModalButtonText = styled.Text`
-  color: white;
-  font-weight: bold;
-  text-align: center;
+  color: #fff;            /* White color to contrast with the red button */
+  font-size: 16px;        /* A readable font size */
+  font-weight: bold;      /* Make the text stand out */
 `;
 
 const TaskName = styled.Text`
