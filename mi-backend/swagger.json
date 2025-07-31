@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
+      "url": "http://localhost:8080",
       "description": "Servidor de desarrollo local"
     },
     {
-      "url": "http://0.0.0.0:8080",
+      "url": "http://0000243.xyz:8080",
       "description": "Servidor de producción"
     }
   ],
