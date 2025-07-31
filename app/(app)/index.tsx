@@ -222,7 +222,7 @@ export default function Index() {
           ...cur,
           {
             id: Date.now().toString() + '-upload',
-            text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+            text: `Archivo subido exitosamente`,
             fromMe: false,
           },
         ]);
