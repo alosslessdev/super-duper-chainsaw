@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { Modal, Alert, ActivityIndicator } from 'react-native';
 import styled from 'styled-components/native';
-import { setAwsKeys, setUserEmail } from './clientKeyStore'; // Adjust path as needed
+import { setAwsKeys, setUserEmail, setUserId } from './clientKeyStore'; // Adjust path as needed, added setUserId
 import { colors } from './styles/colors'; // Assuming this path is correct
 
 // Import for Google Sign-In
@@ -83,8 +83,11 @@ const LoginScreen = () => {
       const data = await response.json();
       if (response.ok) {
         const cookie = response.headers.get('set-cookie') || '';
-        setAwsKeys(data.secretKeyId, data.secretKey, cookie);
+        // Extract userId from the response and pass it to setAwsKeys
+        const userId = data.usuario.id;
+        setAwsKeys(data.secretKeyId, data.secretKey, cookie, userId);
         setUserEmail(email); // Store the email
+        setUserId(userId); // Also store userId using the new function if needed separately
 
         Alert.alert('Bienvenido', 'Has ingresado correctamente', [
           {
@@ -143,8 +146,11 @@ const LoginScreen = () => {
 
       if (backendResponse.ok) {
         const cookie = backendResponse.headers.get('set-cookie') || '';
-        setAwsKeys(backendData.secretKeyId, backendData.secretKey, cookie);
+        // Extract userId from the backendData response and pass it to setAwsKeys
+        const userId = backendData.usuario.id;
+        setAwsKeys(backendData.secretKeyId, backendData.secretKey, cookie, userId);
         setUserEmail(googleEmail); // Store the Google email
+        setUserId(userId); // Also store userId using the new function if needed separately
         showMessage('success', 'Has ingresado correctamente con Google.');
         router.replace('/(app)');
       } else {
@@ -208,8 +214,6 @@ const LoginScreen = () => {
           <ModalContent>
             <ModalTitle>Registrarse con:</ModalTitle>
 
-
-            {/*organizar codigo como los demas abajo*/}
             <SocialButton onPress={handleGoogleLogin} disabled={!request || loading}> 
               {loading ? <ActivityIndicator color="white" /> : (
                 <>
@@ -219,7 +223,6 @@ const LoginScreen = () => {
               )}
             </SocialButton>
 
-            {/*como estos*/}
             <SocialButton onPress={() => handleSocialRegister('Facebook')}>
               <FontAwesome name="facebook" size={20} color="white" />
               <SocialText>Facebook</SocialText>
