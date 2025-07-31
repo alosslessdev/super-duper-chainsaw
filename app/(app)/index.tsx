@@ -97,6 +97,9 @@ export default function Index() {
 
   // Add state to prevent duplicate processing
   const [processingTaskIds, setProcessingTaskIds] = useState<Set<number>>(new Set());
+  
+  // Track AI task IDs that are pending approval (should not show in main task list)
+  const [pendingAiTaskIds, setPendingAiTaskIds] = useState<Set<number>>(new Set());
 
   // Function to fetch tasks from the server
   const fetchTasks = useCallback(async () => {
@@ -119,20 +122,25 @@ export default function Index() {
 
       if (response.ok) {
         const data = await response.json();
-        const loadedTasks: Task[] = data.map((serverTask: any) => {
-          // Parse fecha_inicio to get the hour
-          const startDate = new Date(serverTask.fecha_inicio);
-          const startHour = startDate.getHours();
+        const loadedTasks: Task[] = data
+          .filter((serverTask: any) => {
+            // Filter out AI tasks that are still pending approval
+            return !pendingAiTaskIds.has(parseInt(serverTask.pk));
+          })
+          .map((serverTask: any) => {
+            // Parse fecha_inicio to get the hour
+            const startDate = new Date(serverTask.fecha_inicio);
+            const startHour = startDate.getHours();
 
-          return {
-            id: serverTask.pk.toString(), // Use 'pk' as the ID
-            name: serverTask.titulo, // Map 'titulo' to 'name'
-            type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
-            description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
-            hours: serverTask.horas || 1, // Map 'horas' directly
-            startHour: startHour || 0, // Use the derived start hour
-          };
-        });
+            return {
+              id: serverTask.pk.toString(), // Use 'pk' as the ID
+              name: serverTask.titulo, // Map 'titulo' to 'name'
+              type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
+              description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
+              hours: serverTask.horas || 1, // Map 'horas' directly
+              startHour: startHour || 0, // Use the derived start hour
+            };
+          });
         setTasks(loadedTasks);
       } else {
         const errorData = await response.json();
@@ -145,7 +153,7 @@ export default function Index() {
     } finally {
       setIsLoadingTasks(false);
     }
-  }, [sessionCookie]);
+  }, [sessionCookie, pendingAiTaskIds]);
 
   // Fetch tasks on component mount
   useEffect(() => {
@@ -238,6 +246,10 @@ export default function Index() {
 
         if (response.ok) {
           if (data.tareasProcesadas && data.tareasProcesadas.length > 0) {
+            // Add all AI task IDs to pending list so they don't show in main task list
+            const newPendingIds = data.tareasProcesadas.map((task: ProcessedTask) => task.insertId);
+            setPendingAiTaskIds(prev => new Set([...prev, ...newPendingIds]));
+            
             setAiProcessedTasks(data.tareasProcesadas);
             setAiApprovalModalVisible(true);
             setMsgs(cur => [
@@ -708,10 +720,11 @@ export default function Index() {
         hecho: false,
       };
 
-      const response = await fetch('http://0000243.xyz:8080/tareas', {
-        method: 'POST',
+      // Update the existing task instead of creating a new one
+      const response = await fetch(`http://0000243.xyz:8080/tareas/${taskToAccept.insertId}`, {
+        method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json',  
           Cookie: sessionCookie,
         },
         credentials: 'include',
@@ -732,29 +745,20 @@ export default function Index() {
           },
         ]);
 
-        // Remove from approval list immediately to prevent duplicates
+        // Remove from approval list
         setAiProcessedTasks(cur =>
           cur.filter(task => task.insertId !== taskToAccept.insertId)
         );
 
-        // Create the new task object manually and add it to state immediately
-        // This prevents the need to refetch and avoids potential timing issues
-        const newTask: Task = {
-          id: Date.now().toString(), // Temporary ID until we get the real one from server
-          name: taskToAccept.tarea,
-          type: 'general',
-          description: taskToAccept.tiempoEstimado || '',
-          hours: taskToAccept.horas,
-          startHour: nextAvailableStartHour,
-          completed: false,
-        };
+        // Remove from pending list so it shows in main task list
+        setPendingAiTaskIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(taskToAccept.insertId);
+          return newSet;
+        });
 
-        // Add the task to local state immediately
-        setTasks(cur => [...cur, newTask]);
-
-        // Optionally refetch in background to sync with server
-        // Don't await this to prevent UI delays
-        fetchTasks().catch(err => console.error('Background fetch failed:', err));
+        // Refetch tasks to get the updated task from server
+        fetchTasks();
 
       } else {
         const errorData = await response.json();
@@ -851,6 +855,9 @@ export default function Index() {
         cur.filter(task => task.insertId !== taskToReject.insertId)
       );
       
+      // Keep the task in pending list since it was rejected and deleted
+      // (it won't show up in fetchTasks anyway since it's deleted from DB)
+      
       // Remove from processing set
       setProcessingTaskIds(prev => {
         const newSet = new Set(prev);
@@ -912,8 +919,6 @@ export default function Index() {
         return '#e0f0ff'; // azul por defecto
     }
   };
-
-
 
 
   return (
