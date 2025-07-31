@@ -1,6 +1,6 @@
 import { useRouter, useFocusEffect } from 'expo-router'; 
 import React, { useState, useCallback } from 'react'; 
-import { Alert } from 'react-native'; 
+import { Alert, BackHandler } from 'react-native'; 
 import styled from 'styled-components/native'; 
 
 const Formulario = () => { 
@@ -11,19 +11,24 @@ const Formulario = () => {
   const [loading, setLoading] = useState(false); 
   const [telefono, setTelefono] = useState(''); 
 
-  // This hook runs every time the screen is focused.
-  // It's used here to handle the back action.
+  // This hook adds an event listener for the back button when the component is focused.
+  // It also removes the listener when the component is unfocused to prevent memory leaks.
   useFocusEffect(
     useCallback(() => {
-      // You can add logic here if you need to do something when the screen is focused.
-      // For handling back press, you typically want to push the login screen
-      // so it's on the stack. The user will then be able to go back to it.
-      // Since this is a simple register screen, we don't need explicit back handling
-      // if the navigation stack is set up correctly (e.g., login -> register).
-      // The issue you're describing likely stems from the navigation flow itself.
-      // We will make sure the successful registration uses `replace` and the initial
-      // navigation uses `push` so the back button works as expected.
-    }, [])
+      // Define the handler function for the back button press
+      const onBackPress = () => {
+        // Navigate to the login screen and prevent the default back action.
+        router.replace('/login');
+        return true; // Return true to prevent default back button behavior
+      };
+
+      // Add the event listener
+      BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      // Clean up the event listener when the screen is unfocused
+      return () =>
+        BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+    }, [router]) // The router object is a dependency for the useCallback hook
   );
 
   const handleRegister = async () => { 
@@ -48,8 +53,6 @@ const Formulario = () => {
 
       if (response.ok) { 
         Alert.alert('Registro Exitoso', 'Te has registrado correctamente', [ 
-          // After successful registration, we use `replace` to remove the register screen
-          // from the stack, so the user can't go back to it after logging in.
           { text: 'Aceptar', onPress: () => router.replace('/login') }, 
         ]); 
       } else { 
@@ -84,7 +87,7 @@ const Formulario = () => {
         autoCorrect={false} 
       /> 
 
-      <Label>Contraseña</Label> 
+      <Label>Contraseña</Label>
       <Input 
         placeholder="••••••••" 
         secureTextEntry 
@@ -107,8 +110,10 @@ const Formulario = () => {
   ); 
 }; 
 
+export default Formulario; 
 
-export default Formulario;
+// Estilos
+// ... (Your styled-components code remains the same)
 
 // --- Estilos ---
 // These are all styled components with their base components defined.
