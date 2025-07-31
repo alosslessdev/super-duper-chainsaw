@@ -23,7 +23,7 @@ export default function SettingsScreen() {
 
       if (response.ok) {
         alert('Sesión cerrada exitosamente.');
-        router.replace('/'); // Navigate to a login or initial screen, assuming '/' is your login page
+        router.replace('../login'); // Navigate to a login or initial screen, assuming '/' is your login page
       } else {
         const errorData = await response.json();
         alert(`Error al cerrar sesión: ${errorData.error || response.statusText}`);
