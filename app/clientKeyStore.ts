@@ -4,12 +4,14 @@ let secretKey = '';
 let sessionCookie = '';
 let _googleAccessToken: string | null = null;
 let _userEmail: string | null = null; // New variable to store user email
+let _userId: number | null = null; // New variable to store user ID
 
-export function setAwsKeys(id: string, key: string, cookie: string) {
+export function setAwsKeys(id: string, key: string, cookie: string, userId: number) {
   secretKeyId = id;
   secretKey = key;
   sessionCookie = cookie;
-  console.log('AWS Keys Set:', { id, key, cookie });
+  _userId = userId; // Store the user ID
+  console.log('AWS Keys and User ID Set:', { id, key, cookie, userId });
 }
 
 export function getAwsKeys() {
@@ -44,4 +46,21 @@ export const setUserEmail = (email: string | null) => {
  */
 export const getUserEmail = () => {
   return _userEmail;
+};
+
+/**
+ * Sets the user's ID.
+ * @param userId The user's ID.
+ */
+export const setUserId = (userId: number | null) => {
+  _userId = userId;
+  console.log('User ID Set:', userId);
+};
+
+/**
+ * Retrieves the user's ID.
+ * @returns The user's ID or null if not set.
+ */
+export const getUserId = () => {
+  return _userId;
 };

@@ -392,7 +392,7 @@ export default function Index() {
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
     try {
       const response = await fetch(
-        `http://0000243.xyz:8080/tareas/por/${taskToReject.insertId}`,
+        `http://0000243.xyz:8080/tareas/${taskToReject.insertId}`,
         {
           method: 'DELETE',
           headers: {
