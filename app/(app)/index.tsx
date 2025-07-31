@@ -739,8 +739,9 @@ export default function Index() {
             id:
               Date.now().toString() +
               `-reject-error-${taskToReject.insertId}`,
-            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${errorData.error || response.statusText
-              }.`,
+            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${
+              errorData.error || response.statusText
+            }.`,
             fromMe: false,
           },
         ]);
