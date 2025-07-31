@@ -54,6 +54,16 @@ type Msg = {
 const hourWidth = 30; // ancho fijo para cada hora
 const hours = Array.from({ length: 24 }, (_, i) => i);
 
+// Helper function to get current hour rounded to nearest hour
+const getCurrentHourRounded = (): number => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinutes = now.getMinutes();
+  
+  // Round to nearest hour (if >= 30 minutes, round up)
+  return currentMinutes >= 30 ? (currentHour + 1) % 24 : currentHour;
+};
+
 export default function Index() {
   const router = useRouter();
   const nav = useNavigation();
@@ -84,6 +94,9 @@ export default function Index() {
 
   // State for loading tasks from the server
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+
+  // Add state to prevent duplicate processing
+  const [processingTaskIds, setProcessingTaskIds] = useState<Set<number>>(new Set());
 
   // Function to fetch tasks from the server
   const fetchTasks = useCallback(async () => {
@@ -141,10 +154,34 @@ export default function Index() {
 
 
   // Helper function to find the next available start hour for a task
-  const findNextAvailableHour = useCallback((duration: number, existingTasks: Task[]): number => {
+  const findNextAvailableHour = useCallback((duration: number, existingTasks: Task[], preferredStartHour?: number): number => {
     // Sort tasks by start hour to ensure correct conflict checking
     const sortedTasks = [...existingTasks].sort((a, b) => a.startHour - b.startHour);
+    
+    // If a preferred start hour is provided, try that first
+    if (preferredStartHour !== undefined) {
+      let isConflict = false;
+      const newEnd = preferredStartHour + duration;
+      
+      // Check if we don't exceed 24 hours
+      if (newEnd <= 24) {
+        for (const existingTask of sortedTasks) {
+          const existingStart = existingTask.startHour;
+          const existingEnd = existingTask.startHour + existingTask.hours;
 
+          // Check for overlap
+          if (!(newEnd <= existingStart || preferredStartHour >= existingEnd)) {
+            isConflict = true;
+            break;
+          }
+        }
+        if (!isConflict) {
+          return preferredStartHour;
+        }
+      }
+    }
+
+    // If preferred hour doesn't work or wasn't provided, find next available
     for (let hour = 0; hour <= 24 - duration; hour++) {
       let isConflict = false;
       const newEnd = hour + duration;
@@ -617,47 +654,60 @@ export default function Index() {
   };
 
   const handleAcceptProcessedTask = async (taskToAccept: ProcessedTask) => {
-    // Find the next available start hour for the AI task
-    const nextAvailableStartHour = findNextAvailableHour(taskToAccept.horas, tasks);
-
-    if (nextAvailableStartHour === -1) {
-      Alert.alert('Sin Espacio', `No hay suficiente espacio en el horario para la tarea "${taskToAccept.tarea}".`);
-      setMsgs(cur => [
-        ...cur,
-        {
-          id: Date.now().toString() + `-no-space-${taskToAccept.insertId}`,
-          text: `No hay espacio disponible para la tarea "${taskToAccept.tarea}".`,
-          fromMe: false,
-        },
-      ]);
-      setAiProcessedTasks(cur =>
-        cur.filter(task => task.insertId !== taskToAccept.insertId)
-      );
+    // Prevent duplicate processing
+    if (processingTaskIds.has(taskToAccept.insertId)) {
+      console.log(`Task ${taskToAccept.insertId} is already being processed`);
       return;
     }
 
-    const today = new Date();
-    today.setHours(nextAvailableStartHour, 0, 0, 0);
-    const fecha_inicio = today.toISOString();
-
-    const endDate = new Date(today);
-    endDate.setHours(nextAvailableStartHour + taskToAccept.horas, 0, 0, 0);
-    const fecha_fin = endDate.toISOString();
-
-    const taskPayload = {
-      titulo: taskToAccept.tarea,
-      tipo: 'general',
-      descripcion: taskToAccept.tiempoEstimado || '',
-      horas: taskToAccept.horas,
-      fecha_inicio: fecha_inicio,
-      fecha_fin: fecha_fin,
-      usuario: getUserId(),
-      prioridad: 'general',
-      tiempo_estimado: taskToAccept.tiempoEstimado || '',
-      hecho: false,
-    };
+    // Add to processing set
+    setProcessingTaskIds(prev => new Set(prev).add(taskToAccept.insertId));
 
     try {
+      // Get current hour rounded to nearest hour as preferred start time
+      const preferredStartHour = getCurrentHourRounded();
+      
+      // Find the next available start hour for the AI task, preferring current hour
+      const nextAvailableStartHour = findNextAvailableHour(taskToAccept.horas, tasks, preferredStartHour);
+
+      if (nextAvailableStartHour === -1) {
+        Alert.alert('Sin Espacio', `No hay suficiente espacio en el horario para la tarea "${taskToAccept.tarea}".`);
+        setMsgs(cur => [
+          ...cur,
+          {
+            id: Date.now().toString() + `-no-space-${taskToAccept.insertId}`,
+            text: `No hay espacio disponible para la tarea "${taskToAccept.tarea}".`,
+            fromMe: false,
+          },
+        ]);
+        // Remove from approval list
+        setAiProcessedTasks(cur =>
+          cur.filter(task => task.insertId !== taskToAccept.insertId)
+        );
+        return;
+      }
+
+      const today = new Date();
+      today.setHours(nextAvailableStartHour, 0, 0, 0);
+      const fecha_inicio = today.toISOString();
+
+      const endDate = new Date(today);
+      endDate.setHours(nextAvailableStartHour + taskToAccept.horas, 0, 0, 0);
+      const fecha_fin = endDate.toISOString();
+
+      const taskPayload = {
+        titulo: taskToAccept.tarea,
+        tipo: 'general',
+        descripcion: taskToAccept.tiempoEstimado || '',
+        horas: taskToAccept.horas,
+        fecha_inicio: fecha_inicio,
+        fecha_fin: fecha_fin,
+        usuario: getUserId(),
+        prioridad: 'general',
+        tiempo_estimado: taskToAccept.tiempoEstimado || '',
+        hecho: false,
+      };
+
       const response = await fetch('http://0000243.xyz:8080/tareas', {
         method: 'POST',
         headers: {
@@ -669,11 +719,10 @@ export default function Index() {
       });
 
       if (response.ok) {
+        // Success - show success message
         Alert.alert('Éxito', `Tarea "${taskToAccept.tarea}" aceptada y programada a las ${nextAvailableStartHour}:00.`);
-        fetchTasks(); // Re-fetch tasks to update the UI
-        setAiProcessedTasks(cur =>
-          cur.filter(task => task.insertId !== taskToAccept.insertId)
-        );
+        
+        // Add success message to chat
         setMsgs(cur => [
           ...cur,
           {
@@ -682,6 +731,31 @@ export default function Index() {
             fromMe: false,
           },
         ]);
+
+        // Remove from approval list immediately to prevent duplicates
+        setAiProcessedTasks(cur =>
+          cur.filter(task => task.insertId !== taskToAccept.insertId)
+        );
+
+        // Create the new task object manually and add it to state immediately
+        // This prevents the need to refetch and avoids potential timing issues
+        const newTask: Task = {
+          id: Date.now().toString(), // Temporary ID until we get the real one from server
+          name: taskToAccept.tarea,
+          type: 'general',
+          description: taskToAccept.tiempoEstimado || '',
+          hours: taskToAccept.horas,
+          startHour: nextAvailableStartHour,
+          completed: false,
+        };
+
+        // Add the task to local state immediately
+        setTasks(cur => [...cur, newTask]);
+
+        // Optionally refetch in background to sync with server
+        // Don't await this to prevent UI delays
+        fetchTasks().catch(err => console.error('Background fetch failed:', err));
+
       } else {
         const errorData = await response.json();
         Alert.alert('Error', `Error al aceptar la tarea: ${errorData.error || response.statusText}`);
@@ -705,11 +779,27 @@ export default function Index() {
           fromMe: false,
         },
       ]);
+    } finally {
+      // Always remove from processing set
+      setProcessingTaskIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskToAccept.insertId);
+        return newSet;
+      });
     }
   };
 
 
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
+    // Prevent duplicate processing
+    if (processingTaskIds.has(taskToReject.insertId)) {
+      console.log(`Task ${taskToReject.insertId} is already being processed`);
+      return;
+    }
+
+    // Add to processing set
+    setProcessingTaskIds(prev => new Set(prev).add(taskToReject.insertId));
+
     try {
       const response = await fetch(
         `http://0000243.xyz:8080/tareas/${taskToReject.insertId}`,
@@ -760,6 +850,13 @@ export default function Index() {
       setAiProcessedTasks(cur =>
         cur.filter(task => task.insertId !== taskToReject.insertId)
       );
+      
+      // Remove from processing set
+      setProcessingTaskIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskToReject.insertId);
+        return newSet;
+      });
     }
   };
 
