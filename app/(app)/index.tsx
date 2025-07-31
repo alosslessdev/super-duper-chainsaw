@@ -1,29 +1,43 @@
-import 'react-native-get-random-values';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native'; // Importa Alert
+import 'react-native-get-random-values';
 import styled from 'styled-components/native';
 import AnalogClock from '../(app)/analogClock';
 import { getAwsKeys } from '../clientKeyStore';
 import { colors } from '../styles/colors';
-import * as FileSystem from 'expo-file-system';
+
+
+// Interfaces para styled-components
+interface BubbleProps {
+  fromMe: boolean;
+}
+
+interface DayButtonProps {
+  isSelected: boolean;
+}
+
+interface DayTextProps {
+  isSelected: boolean;
+}
+
+interface DateTextProps {
+  isSelected: boolean;
+}
 
 const { sessionCookie } = getAwsKeys();
-let url: string; //url para archivo en AWS s3
+let url: string = ''; // Initialize url variable
 
-const taskTypes = ['ocio', 'importante', 'liviana', 'descanso'];
+const taskTypes = ['ocio', 'importante', 'liviana', 'descanso', 'general']; // Agregado 'general' para tareas de IA
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
-const today = new Date();
-const formattedDate = today.toLocaleDateString('es-ES', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
+
+// Helper function to format a date as 'YYYY-MM-DD' for consistent storage and comparison
+const formatDateToISO = (date: Date) => date.toISOString().split('T')[0];
 
 type Task = {
   id: string;
@@ -32,6 +46,7 @@ type Task = {
   description: string;
   hours: number; // duración en horas
   startHour: number; // hora de inicio 0-23
+  date: string; // New field: 'YYYY-MM-DD'
 };
 
 type ProcessedTask = {
@@ -47,8 +62,44 @@ type Msg = {
   fromMe: boolean;
 };
 
-const hourWidth = 30; // ancho fijo para cada hora
-const hours = Array.from({ length: 24 }, (_, i) => i);
+// --- Nuevas definiciones para tareas frecuentes ---
+interface FrequentTaskTemplate {
+  name: string;
+  type: string;
+  description: string;
+  hours: number;
+  startHour: number;
+  // Podrías añadir 'dayOfWeek?: number;' (0=Domingo, 6=Sábado) si quisieras agendar en días específicos
+}
+
+
+
+const FREQUENT_TASKS: FrequentTaskTemplate[] = [
+  {
+    name: 'Hacer Ejercicio',
+    type: 'importante',
+    description: 'Rutina de gimnasio',
+    hours: 2,
+    startHour: 15, // 3 PM
+  },
+  {
+    name: 'Comer',
+    type: 'liviana',
+    description: 'Cena familiar',
+    hours: 2,
+    startHour: 18, // 6 PM
+  },
+  // Puedes añadir más tareas frecuentes aquí
+  // {
+  //   name: 'Estudiar Alemán',
+  //   type: 'ocio',
+  //   description: 'Repasar vocabulario',
+  //   hours: 1,
+  //   startHour: 20,
+  // },
+];
+// --- Fin nuevas definiciones ---
+
 
 export default function Index() {
   const router = useRouter();
@@ -61,24 +112,55 @@ export default function Index() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
 
-  // Para controlar modal agregar/editar
+  // State for the currently selected date in the week view
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // For controlling add/edit task modal
   const [taskName, setTaskName] = useState('');
   const [taskType, setTaskType] = useState<string>('ocio');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskHours, setTaskHours] = useState('1');
   const [taskStartHour, setTaskStartHour] = useState('0');
+  // New state for task date in modal, defaults to the currently selected view date
+  const [taskDate, setTaskDate] = useState(formatDateToISO(new Date()));
 
-  // Para editar
+  // For editing mode
   const [isEditing, setIsEditing] = useState(false);
 
-  // Para mostrar u ocultar chat
+  // For showing/hiding chat
   const [chatVisible, setChatVisible] = useState(false);
 
   // For AI processed tasks approval
   const [aiProcessedTasks, setAiProcessedTasks] = useState<ProcessedTask[]>([]);
   const [aiApprovalModalVisible, setAiApprovalModalVisible] = useState(false);
 
-  // Función para enviar mensajes y generar respuesta simulada
+  // Formatted date for display based on selectedDate
+  const isToday = formatDateToISO(selectedDate) === formatDateToISO(new Date());
+
+  const formattedDisplayDate = `${selectedDate.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })}${isToday ? ' (hoy)' : ''}`;
+
+
+  // Helper to get dates for the current week starting from Sunday
+  const getWeekDays = (currentDate: Date) => {
+    const days = [];
+    const startOfWeek = new Date(currentDate);
+    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay()); // Start from Sunday
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
+  const weekDays = getWeekDays(selectedDate);
+
+  // Function to send messages and simulate response
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
         setMsgs(cur => [
@@ -168,94 +250,93 @@ export default function Index() {
   };
 
   const uploadFile = async () => {
-  let fileNamePDF: string;
-  let PDFfileUri: string; // Renamed for clarity
+    let fileNamePDF: string;
+    let PDFfileUri: string; // Renamed for clarity
 
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/pdf', // Specify PDF type for better filtering
-    copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
-  });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf', // Specify PDF type for better filtering
+      copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
+    });
 
-  const { secretKeyId, secretKey } = getAwsKeys();
+    const { secretKeyId, secretKey } = getAwsKeys();
 
-  if (result.assets && result.assets.length > 0) {
-    PDFfileUri = result.assets[0].uri;
-    fileNamePDF = result.assets[0].name;
+    if (result.assets && result.assets.length > 0) {
+      PDFfileUri = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
 
-    // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
-    fileNamePDF = `${Date.now()}-${fileNamePDF}`;
+      // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
+      fileNamePDF = `${Date.now()}-${fileNamePDF}`;
 
-    try {
-      // Read the file content as base64
-      // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
-      const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      try {
+        // Read the file content as base64
+        // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
+        const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
 
-      // Convert base64 to a Uint8Array or Buffer for S3
-      // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
-      // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
-      // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
-      const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
+        // Convert base64 to a Uint8Array or Buffer for S3
+        // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
+        // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
+        // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
+        const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
 
-      const s3Client = new S3Client({
-        region: 'us-east-2', // set your region
-        credentials: {
-          accessKeyId: secretKeyId ?? '',
-          secretAccessKey: secretKey ?? '',
-        },
-      });
+        const s3Client = new S3Client({
+          region: 'us-east-2', // set your region
+          credentials: {
+            accessKeyId: secretKeyId ?? '',
+            secretAccessKey: secretKey ?? '',
+          },
+        });
 
-      const response = await s3Client.send(
-        new PutObjectCommand({
-          Bucket: 'save-pdf-test',
-          Key: fileNamePDF,
-          Body: decodedFile, // Pass the decoded file content
-          ContentType: 'application/pdf', // Specify content type
-        })
-      );
+        const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: 'save-pdf-test',
+            Key: fileNamePDF,
+            Body: decodedFile, // Pass the decoded file content
+            ContentType: 'application/pdf', // Specify content type
+          })
+        );
 
-      if (response.ETag) {
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; 
+        if (response.ETag) {
+          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;  
 
-        setMsgs(cur => [
-          ...cur,
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload',
+              text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+              fromMe: false,
+            },
+          ]);
+          sendMsg(url, input);
+        }
+      } catch (err) {
+        if (err instanceof Error) {
+          console.log('error while uploading', err); // Log the full error for debugging
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload-error',
+              text: `Error al subir el archivo: ${err.message}`,
+              fromMe: false,
+            },
+          ]);
+        }
+      } finally {
+        // Optional: Clean up the cached file if you don't need it anymore
+        // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
+      }
+    } else {
+      setMsgs(cur => [
+        ...cur,
           {
-            id: Date.now().toString() + '-upload',
-            text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+            id: Date.now().toString() + '-upload-cancel',
+            text: 'Selección de archivo cancelada.',
             fromMe: false,
           },
         ]);
-        sendMsg(url, input);
       }
-    } catch (err) {
-      if (err instanceof Error) {
-        console.log('error while uploading', err); // Log the full error for debugging
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload-error',
-            text: `Error al subir el archivo: ${err.message}`,
-            fromMe: false,
-          },
-        ]);
-      }
-    } finally {
-      // Optional: Clean up the cached file if you don't need it anymore
-      // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
-    }
-  } else {
-    setMsgs(cur => [
-      ...cur,
-        {
-          id: Date.now().toString() + '-upload-cancel',
-          text: 'Selección de archivo cancelada.',
-          fromMe: false,
-        },
-      ]);
-    }
-  };
-
+    };
 
   const openTaskModal = (task?: Task) => {
     if (task) {
@@ -264,6 +345,7 @@ export default function Index() {
       setTaskDescription(task.description);
       setTaskHours(task.hours.toString());
       setTaskStartHour(task.startHour.toString());
+      setTaskDate(task.date); // Set existing task date
       setSelectedTask(task);
       setIsEditing(true);
     } else {
@@ -272,6 +354,7 @@ export default function Index() {
       setTaskDescription('');
       setTaskHours('1');
       setTaskStartHour('0');
+      setTaskDate(formatDateToISO(selectedDate)); // Default to currently selected view date
       setSelectedTask(null);
       setIsEditing(false);
     }
@@ -280,37 +363,40 @@ export default function Index() {
 
   const saveTask = () => {
     if (!taskName.trim() || taskName.length > 20) {
-      alert('El nombre debe tener máximo 20 caracteres.');
+      // Replaced alert with custom message box as per instructions
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'El nombre debe tener máximo 20 caracteres.', fromMe: false }]);
       return;
     }
     if (taskDescription.length > 50) {
-      alert('La descripción debe tener máximo 50 caracteres.');
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'La descripción debe tener máximo 50 caracteres.', fromMe: false }]);
       return;
     }
     const duration = Number(taskHours);
     if (isNaN(duration) || duration <= 0 || duration > 24) {
-      alert('Las horas deben ser un número entre 1 y 24.');
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Las horas deben ser un número entre 1 y 24.', fromMe: false }]);
       return;
     }
     const start = Number(taskStartHour);
     if (isNaN(start) || start < 0 || start > 23) {
-      alert('La hora de inicio debe estar entre 0 y 23.');
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'La hora de inicio debe estar entre 0 y 23.', fromMe: false }]);
       return;
     }
 
     const end = start + duration;
+    const selectedTaskDate = taskDate; // Use the date from the modal
 
     for (const t of tasks) {
       if (isEditing && selectedTask && t.id === selectedTask.id) continue;
 
-      const tStart = t.startHour;
-      const tEnd = t.startHour + t.hours;
+      // Check for conflicts on the SAME DATE
+      if (t.date === selectedTaskDate) {
+        const tStart = t.startHour;
+        const tEnd = t.startHour + t.hours;
 
-      if (!(end <= tStart || start >= tEnd)) {
-        alert(
-          `Conflicto con tarea "${t.name}" programada de ${tStart}:00 a ${tEnd}:00`
-        );
-        return;
+        if (!(end <= tStart || start >= tEnd)) {
+          setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Conflicto con tarea "${t.name}" programada el ${t.date} de ${tStart}:00 a ${tEnd}:00`, fromMe: false }]);
+          return;
+        }
       }
     }
 
@@ -325,6 +411,7 @@ export default function Index() {
                 description: taskDescription.trim(),
                 hours: duration,
                 startHour: start,
+                date: selectedTaskDate, // Update date
               }
             : t
         )
@@ -337,6 +424,7 @@ export default function Index() {
         description: taskDescription.trim(),
         hours: duration,
         startHour: start,
+        date: selectedTaskDate, // Add date
       };
       setTasks(cur => [...cur, newTask]);
     }
@@ -346,6 +434,7 @@ export default function Index() {
     setTaskDescription('');
     setTaskHours('1');
     setTaskStartHour('0');
+    setTaskDate(formatDateToISO(selectedDate)); // Reset to current view date
     setSelectedTask(null);
     setIsEditing(false);
     setModalVisible(false);
@@ -374,6 +463,7 @@ export default function Index() {
       description: taskToAccept.tiempoEstimado || '', // Use tiempoEstimado as description or leave empty
       hours: 1, // Default, you might want AI to provide this or ask the user
       startHour: 0, // Default, you might want AI to provide this or ask the user
+      date: formatDateToISO(selectedDate), // Default to currently selected view date
     };
     setTasks(cur => [...cur, newTask]);
     setAiProcessedTasks(cur =>
@@ -459,33 +549,73 @@ export default function Index() {
         // Clear local session data if necessary (e.g., setAwsKeys to empty values)
         // setAwsKeys('', '', ''); // This would require modifying setAwsKeys to clear.
         // For now, simply navigate.
-        alert('Sesión cerrada exitosamente.');
+        // Replaced alert with custom message box as per instructions
+        setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Sesión cerrada exitosamente.', fromMe: false }]);
         router.replace('/'); // Navigate to a login or initial screen
       } else {
         const errorData = await response.json();
-        alert(`Error al cerrar sesión: ${errorData.error || response.statusText}`);
+        setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Error al cerrar sesión: ${errorData.error || response.statusText}`, fromMe: false }]);
       }
     } catch (err) {
       console.error('Logout error:', err);
-      alert('Error de conexión al intentar cerrar sesión.');
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Error de conexión al intentar cerrar sesión.', fromMe: false }]);
     }
   };
 
-  const FechaText = styled.Text`
-    font-size: 18px;
-    font-weight: bold;
-    color: #2c3e50;
-    text-align: center;
-    margin-bottom: 10px;
-    text-transform: capitalize;
-  `;
+  // --- Nueva función para agregar tareas frecuentes ---
+  const addFrequentTasks = () => {
+    const tasksToAdd: Task[] = [];
+    const conflicts: string[] = [];
+    const selectedDateISO = formatDateToISO(selectedDate);
 
-  const TouchableTaskItem = styled.TouchableOpacity`
-    background-color: #e0f0ff;
-    border-radius: 10px;
-    padding: 10px;
-    margin-bottom: 10px;
-  `;
+    FREQUENT_TASKS.forEach(template => {
+      const newStart = template.startHour;
+      const newEnd = template.startHour + template.hours;
+
+      let hasConflict = false;
+      for (const existingTask of tasks) {
+        if (existingTask.date === selectedDateISO) {
+          const existingStart = existingTask.startHour;
+          const existingEnd = existingTask.startHour + existingTask.hours;
+
+          // Check for overlap
+          if (!(newEnd <= existingStart || newStart >= existingEnd)) {
+            hasConflict = true;
+            conflicts.push(`"${template.name}" (${newStart}:00-${newEnd}:00) con "${existingTask.name}" (${existingStart}:00-${existingEnd}:00)`);
+            break; // No need to check other tasks for this template
+          }
+        }
+      }
+
+      if (!hasConflict) {
+        tasksToAdd.push({
+          id: Date.now().toString() + '-' + template.name + '-' + Math.random().toString(36).substring(7), // Unique ID
+          name: template.name,
+          type: template.type,
+          description: template.description,
+          hours: template.hours,
+          startHour: template.startHour,
+          date: selectedDateISO,
+        });
+      }
+    });
+
+    if (conflicts.length > 0) {
+      Alert.alert(
+        'Conflictos de Horario',
+        `No se pudieron agregar algunas tareas frecuentes debido a conflictos de horario en la fecha seleccionada (${formattedDisplayDate}):\n\n${conflicts.join('\n')}\n\nPor favor, ajusta los horarios manualmente.`,
+        [{ text: 'OK' }]
+      );
+    }
+    
+    if (tasksToAdd.length > 0) {
+      setTasks(currentTasks => [...currentTasks, ...tasksToAdd]);
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Se agregaron ${tasksToAdd.length} tareas frecuentes para ${formattedDisplayDate}.`, fromMe: false }]);
+    } else if (conflicts.length === 0) {
+        setMsgs(cur => [...cur, { id: Date.now().toString(), text: `No hay tareas frecuentes para agregar o todas ya existen en ${formattedDisplayDate}.`, fromMe: false }]);
+    }
+  };
+  // --- Fin nueva función ---
 
   return (
     <>
@@ -517,13 +647,39 @@ export default function Index() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Container>
-          <FechaText>{formattedDate}</FechaText>
+          <FechaText>{formattedDisplayDate}</FechaText>
           <AnalogClock />
 
-          <AddButton onPress={() => openTaskModal()}>
-            <AddButtonText>+</AddButtonText>
-          </AddButton>
+          {/* Week View */}
+          <WeekViewContainer>
+            <FlatList
+              data={weekDays}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={item => formatDateToISO(item)}
+              renderItem={({ item }) => {
+                const isSelected = formatDateToISO(item) === formatDateToISO(selectedDate);
+                return (
+                  <DayButton onPress={() => setSelectedDate(item)} isSelected={isSelected}>
+                    <DayText isSelected={isSelected}>{item.toLocaleDateString('es-ES', { weekday: 'short' })}</DayText>
+                    <DateText isSelected={isSelected}>{item.getDate()}</DateText>
+                  </DayButton>
+                );
+              }}
+            />
+          </WeekViewContainer>
 
+          {/* Botones de acción */}
+          <ActionButtonsContainer>
+            <AddButton onPress={() => openTaskModal()}>
+              <AddButtonText>+</AddButtonText>
+            </AddButton>
+            {/* Nuevo botón para tareas frecuentes */}
+            <AddFrequentButton onPress={addFrequentTasks}>
+              <AddFrequentButtonText>📅 Frecuentes</AddFrequentButtonText>
+            </AddFrequentButton>
+          </ActionButtonsContainer>
+          
           {/* Modal agregar/editar tarea */}
           <Modal
             visible={modalVisible}
@@ -563,6 +719,12 @@ export default function Index() {
                   onChangeText={setTaskDescription}
                   maxLength={50}
                   placeholder="Detalles adicionales"
+                />
+
+                <InputLabel>Fecha:</InputLabel>
+                <TextInputStyled
+                  value={taskDate}
+                  editable= {false} // Make it read-only, date is selected via week view
                 />
 
                 <InputLabel>Hora de inicio (0-23):</InputLabel>
@@ -681,7 +843,7 @@ export default function Index() {
 
           {/* Lista de tareas */}
           <FlatList
-            data={tasks}
+            data={tasks.filter(task => task.date === formatDateToISO(selectedDate))}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <TouchableTaskItem
@@ -694,7 +856,7 @@ export default function Index() {
                 <TaskType>{item.type}</TaskType>
                 <TaskDesc>{item.description}</TaskDesc>
                 <TaskHours>
-                  De {item.startHour}:00 a {item.startHour + item.hours}:00 (
+                  {item.date} | De {item.startHour}:00 a {item.startHour + item.hours}:00 (
                   {item.hours} h)
                 </TaskHours>
               </TouchableTaskItem>
@@ -702,7 +864,7 @@ export default function Index() {
             contentContainerStyle={{ paddingBottom: 20 }}
           />
 
-          {/* Botón flotante para abrir chat */}
+          {/* Floating button to open chat */}
           {!chatVisible && (
             <ChatOpenButton onPress={() => setChatVisible(true)}>
               <ChatOpenButtonText>💬</ChatOpenButtonText>
@@ -729,7 +891,7 @@ export default function Index() {
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (
                   <Bubble fromMe={item.fromMe}>
-                    <BubbleText>{item.text}</BubbleText>
+                    <BubbleText fromMe={item.fromMe}>{item.text}</BubbleText>
                   </Bubble>
                 )}
                 contentContainerStyle={{ padding: 16, flexGrow: 1 }}
@@ -760,17 +922,48 @@ export default function Index() {
 
 // --- Estilos ---
 
-const Bubble = styled.View.withConfig({})<{ fromMe: boolean }>`
+const FechaText = styled.Text`
+  font-size: 18px;
+  font-weight: bold;
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 10px;
+  text-transform: capitalize;
+`;
+
+const TouchableTaskItem = styled.TouchableOpacity`
+  background-color: #e0f0ff;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+`;
+
+// Las interfaces ya estaban definidas al principio, no es necesario repetirlas aquí.
+// interface BubbleProps {
+//   fromMe: boolean;
+// }
+
+// interface DayButtonProps {
+//   isSelected: boolean;
+// }
+
+// interface DayTextProps {
+//   isSelected: boolean;
+// }
+
+// interface DateTextProps {
+//   isSelected: boolean;
+// }
+
+const Bubble = styled.View<BubbleProps>`
   margin-vertical: 4px;
   padding: 12px;
   max-width: 70%;
   border-radius: 12px;
-  background-color: ${(props: { fromMe: any; }) => (props.fromMe ? '#0A84FF' : '#E5E5EA')};
-  align-self: ${(props: { fromMe: any; }) => (props.fromMe ? 'flex-end' : 'flex-start')};
+
 `;
 
-const BubbleText = styled.Text`
-  color: ${(props: { fromMe: any; }) => (props.fromMe ? '#ffffff' : '#000000')};
+const BubbleText = styled.Text<BubbleProps>`
   font-size: 16px;
 `;
 
@@ -829,6 +1022,13 @@ const SendText = styled.Text`
   font-weight: bold;
 `;
 
+const ActionButtonsContainer = styled.View`
+  flex-direction: row;
+  justify-content: center; /* Centra los botones */
+  align-items: center;
+  margin: 16px 0;
+`;
+
 const AddButton = styled.TouchableOpacity`
   background-color: #0A84FF;
   width: 60px;
@@ -836,11 +1036,11 @@ const AddButton = styled.TouchableOpacity`
   border-radius: 30px;
   justify-content: center;
   align-items: center;
-  margin: 16px auto;
   shadow-color: #000;
   shadow-opacity: 0.3;
   shadow-radius: 5px;
   elevation: 5;
+  margin-right: 10px; /* Espacio entre botones */
 `;
 
 const AddButtonText = styled.Text`
@@ -849,6 +1049,26 @@ const AddButtonText = styled.Text`
   line-height: 36px;
   font-weight: bold;
 `;
+
+// --- Nuevos estilos para el botón de tareas frecuentes ---
+const AddFrequentButton = styled.TouchableOpacity`
+  background-color: #28a745; /* Un color diferente para distinguirlo */
+  padding: 10px 20px;
+  border-radius: 30px;
+  justify-content: center;
+  align-items: center;
+  shadow-color: #000;
+  shadow-opacity: 0.3;
+  shadow-radius: 5px;
+  elevation: 5;
+`;
+
+const AddFrequentButtonText = styled.Text`
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+`;
+// --- Fin nuevos estilos ---
 
 const PickerStyled = styled(RNPicker).attrs(() => ({
   mode: 'dropdown',
@@ -871,7 +1091,7 @@ const ModalContainer = styled.View`
   border-radius: 12px;
   padding: 20px;
   elevation: 10;
-  max-height: 80%; /* Added to prevent modal from overflowing on smaller screens */
+  max-height: 80%;
 `;
 
 const ModalTitle = styled.Text`
@@ -896,20 +1116,20 @@ const ModalButtonCancel = styled.Pressable`
   background-color: #aaa;
   padding: 10px 20px;
   border-radius: 8px;
-  flex: 1; /* Added for equal button width */
-  margin: 0 5px; /* Added spacing between buttons */
-  justify-content: center; /* Center text vertically */
-  align-items: center; /* Center text horizontally */
+  flex: 1;
+  margin: 0 5px;
+  justify-content: center;
+  align-items: center;
 `;
 
 const ModalButtonSave = styled.Pressable`
   background-color: #0A84FF;
   padding: 10px 20px;
   border-radius: 8px;
-  flex: 1; /* Added for equal button width */
-  margin: 0 5px; /* Added spacing between buttons */
-  justify-content: center; /* Center text vertically */
-  align-items: center; /* Center text horizontally */
+  flex: 1;
+  margin: 0 5px;
+  justify-content: center;
+  align-items: center;
 `;
 
 const ModalButtonText = styled.Text`
@@ -934,65 +1154,83 @@ const TaskDesc = styled.Text`
 `;
 
 const TaskHours = styled.Text`
-  margin-top: 4px;
-  font-weight: 600;
-  color: #444;
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
 `;
 
-// Estilos para el chat
+const WeekViewContainer = styled.View`
+  height: 80px; /* Altura fija para la vista semanal */
+  margin-bottom: 10px;
+`;
+
+const DayButton = styled.TouchableOpacity<DayButtonProps>`
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-horizontal: 4px;
+  align-items: center;
+  justify-content: center;
+  
+`;
+
+const DayText = styled.Text<DayTextProps>`
+  font-size: 14px;
+  font-weight: bold;
+  
+`;
+
+const DateText = styled.Text<DateTextProps>`
+  font-size: 18px;
+  font-weight: bold;
+`;
 
 const ChatOpenButton = styled.TouchableOpacity`
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
   background-color: #0A84FF;
-  width: 60px;
-  height: 60px;
-  border-radius: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
   justify-content: center;
   align-items: center;
-  position: absolute;
-  bottom: 30px;
-  right: 20px;
-  shadow-color: #000;
-  shadow-opacity: 0.3;
-  shadow-radius: 5px;
   elevation: 5;
 `;
 
 const ChatOpenButtonText = styled.Text`
-  color: white;
-  font-size: 28px;
+  font-size: 24px;
 `;
 
 const ChatContainer = styled.View`
   flex: 1;
-  background-color: white;
-  padding: 12px;
+  background-color: #f0f0f0;
 `;
 
 const ChatHeader = styled.View`
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 10px;
-  border-bottom-width: 1px;
-  border-color: #ddd;
+  padding: 15px;
+  background-color: ${colors.primary};
 `;
 
 const ChatTitle = styled.Text`
+  color: white;
   font-size: 20px;
   font-weight: bold;
 `;
 
 const CloseButton = styled.TouchableOpacity`
-  padding: 6px 12px;
+  padding: 5px;
 `;
 
 const CloseButtonText = styled.Text`
+  color: white;
   font-size: 24px;
-  color: #888;
 `;
 
 const UploadButton = styled.TouchableOpacity`
-  background-color: #0A84FF;
+  background-color: #6c757d;
   padding: 10px 12px;
   border-radius: 20px;
   margin-right: 8px;
@@ -1004,10 +1242,10 @@ const UploadButtonText = styled.Text`
 `;
 
 const AITaskItem = styled.View`
-  background-color: #f8f8f8;
+  background-color: #f8d7da; /* Color para tareas de IA pendientes */
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 10px;
-  border-width: 1px;
-  border-color: #eee;
+  border-left-width: 5px;
+  border-left-color: #dc3545;
 `;

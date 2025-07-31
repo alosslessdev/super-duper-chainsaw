@@ -23,18 +23,8 @@ export default function AppLayout() {
             headerShown: false,
           }}
         />
-        <Drawer.Screen
-          name="settings"
-          options={{
-            drawerItemStyle: { display: 'none' },
-          }}
-        />
-        <Drawer.Screen
-          name="components/CustomDrawerContent"
-          options={{
-            drawerItemStyle: { display: 'none' },
-          }}
-        />
+   
+      
       </Drawer>
     </GestureHandlerRootView>
   );

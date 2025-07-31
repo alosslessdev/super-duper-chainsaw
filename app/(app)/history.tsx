@@ -4,7 +4,12 @@ import { FlatList } from 'react-native';
 import styled from 'styled-components/native';
 
 
+
 import { colors } from '../styles/colors';
+
+type BubbleProps = {
+  fromMe: boolean;
+};
 
 // Tipo de dato para los mensajes
 type Msg = { id: string; text: string; fromMe: boolean };
@@ -74,13 +79,13 @@ const EmptyText = styled.Text`
   margin-top: 20px;
 `;
 
-const Bubble = styled.View<{ fromMe: boolean }>`
+const Bubble = styled.View<BubbleProps>`
   margin-vertical: 6px;
   padding: 10px;
   max-width: 80%;
   border-radius: 12px;
-  align-self: ${({ fromMe }) => (fromMe ? 'flex-end' : 'flex-start')};
-  background-color: ${({ fromMe }) => (fromMe ? `${colors.primary}33` : '#eee')};
+align-self: ${(props: BubbleProps) => (props.fromMe ? 'flex-end' : 'flex-start')};
+background-color: ${(props: BubbleProps) => (props.fromMe ? `${colors.primary}33` : '#eee')};
 `;
 
 const BubbleText = styled.Text`
