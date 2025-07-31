@@ -28,11 +28,13 @@ const formattedDate = today.toLocaleDateString('es-ES', {
 
 type Task = {
   id: string;
-  name: string; // Maps to 'titulo'
-  type: string; // Maps to 'tipo'
-  description: string; // Maps to 'descripcion'
-  hours: number; // Maps to 'horas'
-  startHour: number; // Derived from 'fecha_inicio'
+  name: string;
+  type: string;
+  description: string;
+  hours: number;
+  startHour: number;
+  completed?: boolean; // Nueva propiedad
+
 };
 
 type ProcessedTask = {
@@ -307,6 +309,7 @@ export default function Index() {
             ...cur,
             {
               id: Date.now().toString() + '-upload',
+
               text: `Archivo subido exitosamente`,
               fromMe: false,
             },
@@ -490,6 +493,7 @@ export default function Index() {
       }
     }
 
+
     // If no conflict, or user decided to save after conflict resolution
     const taskPayload = {
       titulo: taskName.trim(),
@@ -599,6 +603,17 @@ export default function Index() {
         { cancelable: true }
       );
     }
+  };
+  //completado
+  const handleComplete = () => {
+    if (selectedTask) {
+      setTasks(cur =>
+        cur.map(t =>
+          t.id === selectedTask.id ? { ...t, completed: true } : t
+        )
+      );
+    }
+    setActionModalVisible(false);
   };
 
   const handleAcceptProcessedTask = async (taskToAccept: ProcessedTask) => {
@@ -724,9 +739,8 @@ export default function Index() {
             id:
               Date.now().toString() +
               `-reject-error-${taskToReject.insertId}`,
-            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${
-              errorData.error || response.statusText
-            }.`,
+            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${errorData.error || response.statusText
+              }.`,
             fromMe: false,
           },
         ]);
@@ -786,12 +800,23 @@ export default function Index() {
     text-transform: capitalize;
   `;
 
-  const TouchableTaskItem = styled.TouchableOpacity`
-    background-color: #e0f0ff;
-    border-radius: 10px;
-    padding: 10px;
-    margin-bottom: 10px;
-  `;
+  const getTaskColor = (type: string, completed?: boolean) => {
+    if (completed) return '#d3d3d3'; // gris si completada
+    switch (type) {
+      case 'importante':
+        return '#ffb3b3'; // rojo claro
+      case 'ocio':
+        return '#d6b3ff'; // azul claro
+      case 'liviana':
+        return '#b3ffb3'; // verde claro
+      case 'descanso':
+        return '#b3e0ff'; // naranja claro
+      default:
+        return '#e0f0ff'; // azul por defecto
+    }
+  };
+
+
 
 
   return (
@@ -916,6 +941,9 @@ export default function Index() {
           >
             <ModalBackground>
               <ModalContainer>
+                <CloseModalButton onPress={() => setActionModalVisible(false)}>
+                  <CloseModalButtonText>✖</CloseModalButtonText>
+                </CloseModalButton>
                 <ModalTitle>¿Qué deseas hacer?</ModalTitle>
 
                 <ModalButtonsRow>
@@ -926,14 +954,16 @@ export default function Index() {
                   <ModalButtonCancel onPress={handleDelete}>
                     <ModalButtonText>Eliminar</ModalButtonText>
                   </ModalButtonCancel>
+
+                  <ModalButtonComplete onPress={handleComplete}>
+                    <ModalButtonText>Completada</ModalButtonText>
+                  </ModalButtonComplete>
                 </ModalButtonsRow>
 
-                <ModalButtonCancel
-                  onPress={() => setActionModalVisible(false)}
-                  style={{ marginTop: 10 }}
-                >
-                  <ModalButtonText>Cancelar</ModalButtonText>
-                </ModalButtonCancel>
+
+
+
+
               </ModalContainer>
             </ModalBackground>
           </Modal>
@@ -987,6 +1017,7 @@ export default function Index() {
           </Modal>
 
           {/* Lista de tareas */}
+
           {isLoadingTasks ? (
             <LoadingText>Cargando tareas...</LoadingText>
           ) : (
@@ -999,6 +1030,7 @@ export default function Index() {
                     setSelectedTask(item);
                     setActionModalVisible(true);
                   }}
+                  $bg={getTaskColor(item.type, item.completed)}
                 >
                   <TaskName>{item.name}</TaskName>
                   <TaskType>{item.type}</TaskType>
@@ -1072,9 +1104,11 @@ export default function Index() {
   );
 }
 
+
+
 // --- Estilos ---
 
-const Bubble = styled.View.withConfig({})<{ fromMe: boolean }>`
+const Bubble = styled.View.withConfig({}) <{ fromMe: boolean }>`
   margin-vertical: 4px;
   padding: 12px;
   max-width: 70%;
@@ -1192,6 +1226,8 @@ const ModalTitle = styled.Text`
   font-size: 20px;
   font-weight: bold;
   margin-bottom: 12px;
+  text-align: center;
+  width: 100%;
 `;
 
 const InputLabel = styled.Text`
@@ -1200,14 +1236,40 @@ const InputLabel = styled.Text`
   color: #333;
 `;
 
+
+const CloseModalButton = styled.TouchableOpacity`
+  position: absolute;
+  top: -4px;
+  right: 0px;
+  z-index: 10;
+  background-color: transparent;
+  padding: 6px;
+`;
+
+const CloseModalButtonText = styled.Text`
+  font-size: 22px;
+  color: #888;
+  font-weight: bold;
+`;
+
 const ModalButtonsRow = styled.View`
   flex-direction: row;
   justify-content: space-between;
   margin-top: 20px;
 `;
 
+const ModalButtonClose = styled.Pressable`
+  background-color: #aaa; /* gris claro*/
+  padding: 10px 20px;
+  border-radius: 8px;
+  width: 100%;
+  margin-top: 10px;
+  justify-content: center;
+  align-items: center;
+`;
+
 const ModalButtonCancel = styled.Pressable`
-  background-color: #aaa;
+  background-color: #FF3B30;
   padding: 10px 20px;
   border-radius: 8px;
   flex: 1; /* Added for equal button width */
@@ -1226,6 +1288,16 @@ const ModalButtonSave = styled.Pressable`
   align-items: center; /* Center text horizontally */
 `;
 
+const ModalButtonComplete = styled.Pressable`
+  background-color: #4CD964; /* verde */
+  padding: 10px 20px;
+  border-radius: 8px;
+  flex: 1;
+  margin: 0 5px;
+  justify-content: center;
+  align-items: center;
+`;
+
 const ModalButtonText = styled.Text`
   color: white;
   font-weight: bold;
@@ -1236,6 +1308,8 @@ const TaskName = styled.Text`
   font-weight: bold;
   font-size: 16px;
 `;
+
+
 
 const TaskType = styled.Text`
   font-style: italic;
@@ -1251,6 +1325,13 @@ const TaskHours = styled.Text`
   margin-top: 4px;
   font-weight: 600;
   color: #444;
+`;
+
+const TouchableTaskItem = styled.TouchableOpacity<{ $bg: string }>`
+  background-color: ${(props: { $bg: string }) => props.$bg};
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
 `;
 
 // Estilos para el chat
@@ -1325,6 +1406,7 @@ const AITaskItem = styled.View`
   border-width: 1px;
   border-color: #eee;
 `;
+
 
 const LoadingText = styled.Text`
   text-align: center;
