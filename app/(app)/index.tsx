@@ -30,8 +30,9 @@ type Task = {
   name: string;
   type: string;
   description: string;
-  hours: number; // duración en horas
-  startHour: number; // hora de inicio 0-23
+  hours: number;
+  startHour: number;
+  completed?: boolean; // Nueva propiedad
 };
 
 type ProcessedTask = {
@@ -81,22 +82,22 @@ export default function Index() {
   // Función para enviar mensajes y generar respuesta simulada
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
-        setMsgs(cur => [
-            ...cur,
-            {
-                id: Date.now().toString() + '-ai-processing-start',
-                text: 'Procesando archivo con IA...',
-                fromMe: false,
-            },
-        ]);
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ai-processing-start',
+          text: 'Procesando archivo con IA...',
+          fromMe: false,
+        },
+      ]);
     } else {
-        const userMsg: Msg = {
-            id: Date.now().toString(),
-            text: question.trim(),
-            fromMe: true,
-        };
-        setMsgs(cur => [...cur, userMsg]);
-        setInput('');
+      const userMsg: Msg = {
+        id: Date.now().toString(),
+        text: question.trim(),
+        fromMe: true,
+      };
+      setMsgs(cur => [...cur, userMsg]);
+      setInput('');
     }
 
     setTimeout(async () => {
@@ -168,85 +169,85 @@ export default function Index() {
   };
 
   const uploadFile = async () => {
-  let fileNamePDF: string;
-  let PDFfileUri: string; // Renamed for clarity
+    let fileNamePDF: string;
+    let PDFfileUri: string; // Renamed for clarity
 
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/pdf', // Specify PDF type for better filtering
-    copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
-  });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf', // Specify PDF type for better filtering
+      copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
+    });
 
-  const { secretKeyId, secretKey } = getAwsKeys();
+    const { secretKeyId, secretKey } = getAwsKeys();
 
-  if (result.assets && result.assets.length > 0) {
-    PDFfileUri = result.assets[0].uri;
-    fileNamePDF = result.assets[0].name;
+    if (result.assets && result.assets.length > 0) {
+      PDFfileUri = result.assets[0].uri;
+      fileNamePDF = result.assets[0].name;
 
-    // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
-    fileNamePDF = `${Date.now()}-${fileNamePDF}`;
+      // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
+      fileNamePDF = `${Date.now()}-${fileNamePDF}`;
 
-    try {
-      // Read the file content as base64
-      // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
-      const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      try {
+        // Read the file content as base64
+        // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
+        const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
 
-      // Convert base64 to a Uint8Array or Buffer for S3
-      // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
-      // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
-      // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
-      const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
+        // Convert base64 to a Uint8Array or Buffer for S3
+        // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
+        // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
+        // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
+        const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
 
-      const s3Client = new S3Client({
-        region: 'us-east-2', // set your region
-        credentials: {
-          accessKeyId: secretKeyId ?? '',
-          secretAccessKey: secretKey ?? '',
-        },
-      });
-
-      const response = await s3Client.send(
-        new PutObjectCommand({
-          Bucket: 'save-pdf-test',
-          Key: fileNamePDF,
-          Body: decodedFile, // Pass the decoded file content
-          ContentType: 'application/pdf', // Specify content type
-        })
-      );
-
-      if (response.ETag) {
-        url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`; 
-
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload',
-            text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
-            fromMe: false,
+        const s3Client = new S3Client({
+          region: 'us-east-2', // set your region
+          credentials: {
+            accessKeyId: secretKeyId ?? '',
+            secretAccessKey: secretKey ?? '',
           },
-        ]);
-        sendMsg(url, input);
+        });
+
+        const response = await s3Client.send(
+          new PutObjectCommand({
+            Bucket: 'save-pdf-test',
+            Key: fileNamePDF,
+            Body: decodedFile, // Pass the decoded file content
+            ContentType: 'application/pdf', // Specify content type
+          })
+        );
+
+        if (response.ETag) {
+          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
+
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload',
+              text: `Archivo "${fileNamePDF}" subido exitosamente a AWS S3. URL: ${url}`,
+              fromMe: false,
+            },
+          ]);
+          sendMsg(url, input);
+        }
+      } catch (err) {
+        if (err instanceof Error) {
+          console.log('error while uploading', err); // Log the full error for debugging
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString() + '-upload-error',
+              text: `Error al subir el archivo: ${err.message}`,
+              fromMe: false,
+            },
+          ]);
+        }
+      } finally {
+        // Optional: Clean up the cached file if you don't need it anymore
+        // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
       }
-    } catch (err) {
-      if (err instanceof Error) {
-        console.log('error while uploading', err); // Log the full error for debugging
-        setMsgs(cur => [
-          ...cur,
-          {
-            id: Date.now().toString() + '-upload-error',
-            text: `Error al subir el archivo: ${err.message}`,
-            fromMe: false,
-          },
-        ]);
-      }
-    } finally {
-      // Optional: Clean up the cached file if you don't need it anymore
-      // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
-    }
-  } else {
-    setMsgs(cur => [
-      ...cur,
+    } else {
+      setMsgs(cur => [
+        ...cur,
         {
           id: Date.now().toString() + '-upload-cancel',
           text: 'Selección de archivo cancelada.',
@@ -319,13 +320,13 @@ export default function Index() {
         cur.map(t =>
           t.id === selectedTask.id
             ? {
-                ...t,
-                name: taskName.trim(),
-                type: taskType,
-                description: taskDescription.trim(),
-                hours: duration,
-                startHour: start,
-              }
+              ...t,
+              name: taskName.trim(),
+              type: taskType,
+              description: taskDescription.trim(),
+              hours: duration,
+              startHour: start,
+            }
             : t
         )
       );
@@ -361,6 +362,17 @@ export default function Index() {
   const handleDelete = () => {
     if (selectedTask) {
       setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
+    }
+    setActionModalVisible(false);
+  };
+  //completado
+  const handleComplete = () => {
+    if (selectedTask) {
+      setTasks(cur =>
+        cur.map(t =>
+          t.id === selectedTask.id ? { ...t, completed: true } : t
+        )
+      );
     }
     setActionModalVisible(false);
   };
@@ -419,9 +431,8 @@ export default function Index() {
             id:
               Date.now().toString() +
               `-reject-error-${taskToReject.insertId}`,
-            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${
-              errorData.error || response.statusText
-            }.`,
+            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${errorData.error || response.statusText
+              }.`,
             fromMe: false,
           },
         ]);
@@ -480,12 +491,23 @@ export default function Index() {
     text-transform: capitalize;
   `;
 
-  const TouchableTaskItem = styled.TouchableOpacity`
-    background-color: #e0f0ff;
-    border-radius: 10px;
-    padding: 10px;
-    margin-bottom: 10px;
-  `;
+  const getTaskColor = (type: string, completed?: boolean) => {
+    if (completed) return '#d3d3d3'; // gris si completada
+    switch (type) {
+      case 'importante':
+        return '#ffb3b3'; // rojo claro
+      case 'ocio':
+        return '#d6b3ff'; // azul claro
+      case 'liviana':
+        return '#b3ffb3'; // verde claro
+      case 'descanso':
+        return '#b3e0ff'; // naranja claro
+      default:
+        return '#e0f0ff'; // azul por defecto
+    }
+  };
+
+
 
   return (
     <>
@@ -609,6 +631,9 @@ export default function Index() {
           >
             <ModalBackground>
               <ModalContainer>
+                <CloseModalButton onPress={() => setActionModalVisible(false)}>
+                  <CloseModalButtonText>✖</CloseModalButtonText>
+                </CloseModalButton>
                 <ModalTitle>¿Qué deseas hacer?</ModalTitle>
 
                 <ModalButtonsRow>
@@ -619,14 +644,16 @@ export default function Index() {
                   <ModalButtonCancel onPress={handleDelete}>
                     <ModalButtonText>Eliminar</ModalButtonText>
                   </ModalButtonCancel>
+
+                  <ModalButtonComplete onPress={handleComplete}>
+                    <ModalButtonText>Completada</ModalButtonText>
+                  </ModalButtonComplete>
                 </ModalButtonsRow>
 
-                <ModalButtonCancel
-                  onPress={() => setActionModalVisible(false)}
-                  style={{ marginTop: 10 }}
-                >
-                  <ModalButtonText>Cancelar</ModalButtonText>
-                </ModalButtonCancel>
+
+
+
+
               </ModalContainer>
             </ModalBackground>
           </Modal>
@@ -689,6 +716,7 @@ export default function Index() {
                   setSelectedTask(item);
                   setActionModalVisible(true);
                 }}
+                $bg={getTaskColor(item.type, item.completed)}
               >
                 <TaskName>{item.name}</TaskName>
                 <TaskType>{item.type}</TaskType>
@@ -758,9 +786,11 @@ export default function Index() {
   );
 }
 
+
+
 // --- Estilos ---
 
-const Bubble = styled.View.withConfig({})<{ fromMe: boolean }>`
+const Bubble = styled.View.withConfig({}) <{ fromMe: boolean }>`
   margin-vertical: 4px;
   padding: 12px;
   max-width: 70%;
@@ -878,6 +908,8 @@ const ModalTitle = styled.Text`
   font-size: 20px;
   font-weight: bold;
   margin-bottom: 12px;
+  text-align: center;
+  width: 100%;
 `;
 
 const InputLabel = styled.Text`
@@ -886,14 +918,40 @@ const InputLabel = styled.Text`
   color: #333;
 `;
 
+
+const CloseModalButton = styled.TouchableOpacity`
+  position: absolute;
+  top: -4px;
+  right: 0px;
+  z-index: 10;
+  background-color: transparent;
+  padding: 6px;
+`;
+
+const CloseModalButtonText = styled.Text`
+  font-size: 22px;
+  color: #888;
+  font-weight: bold;
+`;
+
 const ModalButtonsRow = styled.View`
   flex-direction: row;
   justify-content: space-between;
   margin-top: 20px;
 `;
 
+const ModalButtonClose = styled.Pressable`
+  background-color: #aaa; /* gris claro*/
+  padding: 10px 20px;
+  border-radius: 8px;
+  width: 100%;
+  margin-top: 10px;
+  justify-content: center;
+  align-items: center;
+`;
+
 const ModalButtonCancel = styled.Pressable`
-  background-color: #aaa;
+  background-color: #FF3B30;
   padding: 10px 20px;
   border-radius: 8px;
   flex: 1; /* Added for equal button width */
@@ -912,6 +970,16 @@ const ModalButtonSave = styled.Pressable`
   align-items: center; /* Center text horizontally */
 `;
 
+const ModalButtonComplete = styled.Pressable`
+  background-color: #4CD964; /* verde */
+  padding: 10px 20px;
+  border-radius: 8px;
+  flex: 1;
+  margin: 0 5px;
+  justify-content: center;
+  align-items: center;
+`;
+
 const ModalButtonText = styled.Text`
   color: white;
   font-weight: bold;
@@ -922,6 +990,8 @@ const TaskName = styled.Text`
   font-weight: bold;
   font-size: 16px;
 `;
+
+
 
 const TaskType = styled.Text`
   font-style: italic;
@@ -937,6 +1007,13 @@ const TaskHours = styled.Text`
   margin-top: 4px;
   font-weight: 600;
   color: #444;
+`;
+
+const TouchableTaskItem = styled.TouchableOpacity<{ $bg: string }>`
+  background-color: ${(props: { $bg: string }) => props.$bg};
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
 `;
 
 // Estilos para el chat
