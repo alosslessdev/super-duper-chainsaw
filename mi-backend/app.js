@@ -183,7 +183,7 @@ app.post('/tareas', requireLogin, async (req, res) => {
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo } = req.body;
   // Asignar siempre al usuario logueado
   const usuario = req.session.user?.id;
-/*   if (!usuario) {
+/* if (!usuario) {
     return res.status(401).json({ error: 'Usuario no autenticado para crear tarea.' });
   } */
 
@@ -249,16 +249,32 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     let attempt = 0;
     let jsonRepairSuccess = false;
     let lastError;
+
+    // Process pdf_url and question from the request body
+    let pdfUrl = req.body.pdf_url;
+    let question = req.body.question;
+
+    // Trim leading/trailing spaces and consider empty if only spaces
+    if (typeof pdfUrl === 'string') {
+      pdfUrl = pdfUrl.trim();
+      if (pdfUrl === '') pdfUrl = '';
+    }
+    if (typeof question === 'string') {
+      question = question.trim();
+      if (question === '') question = 'Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento. Si hay una lista de puntos a hacer, muestra la lista.';
+    } else { //if the if expression is false
+      question = 'Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento. Si hay una lista de puntos a hacer, muestra la lista.';
+    }
+
+
     // Intentar hasta 2 veces para obtener y reparar la respuesta JSON de la IA
     while (attempt < 2 && !jsonRepairSuccess) {
       try {
         response = await axios.post(
           `http://0000243.xyz:8000/secure-data`, // URL del servicio de IA
           {
-            pdf_url: req.body.pdf_url || '', // URL del PDF (opcional)
-            question: 'Por favor extrae todos los pasos que debo hacer para completar lo que se plantea en este documento.' +
-            ' Si hay una lista de puntos a hacer, muestra la lista.'  // Pregunta para la IA, deberia mandarlo el frontend 
-                                                                      // pero el frontend no lo manda cuando se sube un pdf
+            pdf_url: pdfUrl, // URL del PDF (opcional)
+            question: question // Pregunta para la IA
           },
           {
             headers: {

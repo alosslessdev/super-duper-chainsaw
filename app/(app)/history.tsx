@@ -79,8 +79,8 @@ const Bubble = styled.View<{ fromMe: boolean }>`
   padding: 10px;
   max-width: 80%;
   border-radius: 12px;
-  align-self: ${({ fromMe }) => (fromMe ? 'flex-end' : 'flex-start')};
-  background-color: ${({ fromMe }) => (fromMe ? `${colors.primary}33` : '#eee')};
+  align-self: ${({ fromMe } : {fromMe:boolean}) => (fromMe ? 'flex-end' : 'flex-start')};
+  background-color: ${({ fromMe } : {fromMe:boolean}) => (fromMe ? `${colors.primary}33` : '#eee')};
 `;
 
 const BubbleText = styled.Text`
