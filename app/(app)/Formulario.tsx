@@ -11,30 +11,25 @@ const Formulario = () => {
   const [loading, setLoading] = useState(false); 
   const [telefono, setTelefono] = useState(''); 
 
-  // This hook adds an event listener for the back button when the component is focused.
-  // It also removes the listener when the component is unfocused to prevent memory leaks.
   useFocusEffect(
     useCallback(() => {
-      // Define the handler function for the back button press
       const onBackPress = () => {
-        // Navigate to the login screen and prevent the default back action.
         router.replace('/login');
         return true; // Return true to prevent default back button behavior
       };
 
-      // Add the event listener
-      BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      // Add the event listener and get the subscription object
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
 
-      // Clean up the event listener when the screen is unfocused
-      return () =>
-        BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-    }, [router]) // The router object is a dependency for the useCallback hook
+      // The cleanup function now uses the `remove()` method on the subscription object.
+      return () => backHandler.remove();
+    }, [router])
   );
 
   const handleRegister = async () => { 
     if (email.trim() === '' || password.trim() === '') { 
       Alert.alert('Error', 'Por favor completa todos los campos'); 
-      return; 
+      return;
     } 
 
     setLoading(true); 
@@ -81,17 +76,17 @@ const Formulario = () => {
       <Input 
         placeholder="correo@ejemplo.com" 
         keyboardType="email-address" 
-        value={email} 
-        onChangeText={setEmail} 
-        autoCapitalize="none" 
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
         autoCorrect={false} 
       /> 
 
-      <Label>Contraseña</Label>
+      <Label>Contraseña</Label> 
       <Input 
         placeholder="••••••••" 
-        secureTextEntry 
-        value={password} 
+        secureTextEntry
+        value={password}
         onChangeText={setPassword} 
       /> 
 
@@ -99,7 +94,7 @@ const Formulario = () => {
       <Input 
         placeholder="60001234" 
         keyboardType="phone-pad" 
-        value={telefono} 
+        value={telefono}
         onChangeText={setTelefono} 
       />
       
