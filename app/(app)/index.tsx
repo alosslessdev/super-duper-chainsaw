@@ -708,10 +708,11 @@ export default function Index() {
         hecho: false,
       };
 
-      const response = await fetch('http://0000243.xyz:8080/tareas', {
-        method: 'POST',
+      // Update the existing task instead of creating a new one
+      const response = await fetch(`http://0000243.xyz:8080/tareas/${taskToAccept.insertId}`, {
+        method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json',  
           Cookie: sessionCookie,
         },
         credentials: 'include',
@@ -737,24 +738,8 @@ export default function Index() {
           cur.filter(task => task.insertId !== taskToAccept.insertId)
         );
 
-        // Create the new task object manually and add it to state immediately
-        // This prevents the need to refetch and avoids potential timing issues
-        const newTask: Task = {
-          id: Date.now().toString(), // Temporary ID until we get the real one from server
-          name: taskToAccept.tarea,
-          type: 'general',
-          description: taskToAccept.tiempoEstimado || '',
-          hours: taskToAccept.horas,
-          startHour: nextAvailableStartHour,
-          completed: false,
-        };
-
-        // Add the task to local state immediately
-        setTasks(cur => [...cur, newTask]);
-
-        // Optionally refetch in background to sync with server
-        // Don't await this to prevent UI delays
-        fetchTasks().catch(err => console.error('Background fetch failed:', err));
+        // Refetch tasks to get the updated task from server
+        fetchTasks();
 
       } else {
         const errorData = await response.json();
@@ -912,7 +897,6 @@ export default function Index() {
         return '#e0f0ff'; // azul por defecto
     }
   };
-
 
 
 
