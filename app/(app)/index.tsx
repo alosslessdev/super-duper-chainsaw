@@ -97,6 +97,9 @@ export default function Index() {
 
   // Add state to prevent duplicate processing
   const [processingTaskIds, setProcessingTaskIds] = useState<Set<number>>(new Set());
+  
+  // Track AI task IDs that are pending approval (should not show in main task list)
+  const [pendingAiTaskIds, setPendingAiTaskIds] = useState<Set<number>>(new Set());
 
   // Function to fetch tasks from the server
   const fetchTasks = useCallback(async () => {
@@ -119,20 +122,25 @@ export default function Index() {
 
       if (response.ok) {
         const data = await response.json();
-        const loadedTasks: Task[] = data.map((serverTask: any) => {
-          // Parse fecha_inicio to get the hour
-          const startDate = new Date(serverTask.fecha_inicio);
-          const startHour = startDate.getHours();
+        const loadedTasks: Task[] = data
+          .filter((serverTask: any) => {
+            // Filter out AI tasks that are still pending approval
+            return !pendingAiTaskIds.has(parseInt(serverTask.pk));
+          })
+          .map((serverTask: any) => {
+            // Parse fecha_inicio to get the hour
+            const startDate = new Date(serverTask.fecha_inicio);
+            const startHour = startDate.getHours();
 
-          return {
-            id: serverTask.pk.toString(), // Use 'pk' as the ID
-            name: serverTask.titulo, // Map 'titulo' to 'name'
-            type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
-            description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
-            hours: serverTask.horas || 1, // Map 'horas' directly
-            startHour: startHour || 0, // Use the derived start hour
-          };
-        });
+            return {
+              id: serverTask.pk.toString(), // Use 'pk' as the ID
+              name: serverTask.titulo, // Map 'titulo' to 'name'
+              type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
+              description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
+              hours: serverTask.horas || 1, // Map 'horas' directly
+              startHour: startHour || 0, // Use the derived start hour
+            };
+          });
         setTasks(loadedTasks);
       } else {
         const errorData = await response.json();
@@ -145,7 +153,7 @@ export default function Index() {
     } finally {
       setIsLoadingTasks(false);
     }
-  }, [sessionCookie]);
+  }, [sessionCookie, pendingAiTaskIds]);
 
   // Fetch tasks on component mount
   useEffect(() => {
@@ -238,6 +246,10 @@ export default function Index() {
 
         if (response.ok) {
           if (data.tareasProcesadas && data.tareasProcesadas.length > 0) {
+            // Add all AI task IDs to pending list so they don't show in main task list
+            const newPendingIds = data.tareasProcesadas.map((task: ProcessedTask) => task.insertId);
+            setPendingAiTaskIds(prev => new Set([...prev, ...newPendingIds]));
+            
             setAiProcessedTasks(data.tareasProcesadas);
             setAiApprovalModalVisible(true);
             setMsgs(cur => [
@@ -733,10 +745,17 @@ export default function Index() {
           },
         ]);
 
-        // Remove from approval list immediately to prevent duplicates
+        // Remove from approval list
         setAiProcessedTasks(cur =>
           cur.filter(task => task.insertId !== taskToAccept.insertId)
         );
+
+        // Remove from pending list so it shows in main task list
+        setPendingAiTaskIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(taskToAccept.insertId);
+          return newSet;
+        });
 
         // Refetch tasks to get the updated task from server
         fetchTasks();
@@ -835,6 +854,9 @@ export default function Index() {
       setAiProcessedTasks(cur =>
         cur.filter(task => task.insertId !== taskToReject.insertId)
       );
+      
+      // Keep the task in pending list since it was rejected and deleted
+      // (it won't show up in fetchTasks anyway since it's deleted from DB)
       
       // Remove from processing set
       setProcessingTaskIds(prev => {
