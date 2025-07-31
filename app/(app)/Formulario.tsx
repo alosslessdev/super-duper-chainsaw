@@ -1,113 +1,112 @@
-// App.js
-// This component provides a registration form for a user, handling state,
-// validation, and a POST request to a registration API endpoint.
+import { useRouter, useFocusEffect } from 'expo-router'; 
+import React, { useState, useCallback } from 'react'; 
+import { Alert } from 'react-native'; 
+import styled from 'styled-components/native'; 
 
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert } from 'react-native';
-import styled from 'styled-components/native';
+const Formulario = () => { 
+  const router = useRouter(); 
 
-// This is the main form component for user registration.
-const Formulario = () => {
-  // `useRouter` is a hook from Expo Router for navigation.
-  const router = useRouter();
+  const [email, setEmail] = useState(''); 
+  const [password, setPassword] = useState(''); 
+  const [loading, setLoading] = useState(false); 
+  const [telefono, setTelefono] = useState(''); 
 
-  // State hooks for managing form input values and loading state.
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [telefono, setTelefono] = useState('');
-
-  // The handleRegister function is asynchronous to manage the API call.
-  const handleRegister = async () => {
-    // Basic validation to ensure required fields are not empty.
-    if (email.trim() === '' || password.trim() === '') {
-      Alert.alert('Error', 'Por favor completa todos los campos obligatorios');
-      return;
-    }
-
-    // Set loading to true to disable the button and show a loading message.
-    setLoading(true);
-
-    try {
-      // Make a POST request to the registration endpoint.
-      const response = await fetch('http://0000243.xyz:8080/usuarios', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
-      });
-
-      // Check if the response was successful (HTTP status 200-299).
-      if (response.ok) {
-        Alert.alert('Registro Exitoso', 'Te has registrado correctamente', [
-          // On success, navigate the user to the login page.
-          { text: 'Aceptar', onPress: () => router.replace('/login') },
-        ]);
-      } else {
-        // If the server returns an error, parse the error message and display it.
-        const errorData = await response.json();
-        Alert.alert(
-          'Error de Registro',
-          errorData.message || 'Ocurrió un error inesperado'
-        );
-      }
-    } catch (error) {
-      // Handle network or other unexpected errors.
-      console.error('Error durante el registro:', error);
-      Alert.alert(
-        'Error de Conexión',
-        'No se pudo conectar al servidor. Por favor, inténtalo de nuevo.'
-      );
-    } finally {
-      // Always reset the loading state after the request completes.
-      setLoading(false);
-    }
-  };
-
-  // The JSX for the registration form UI.
-  return (
-    <Container>
-      {/* The Logo component is a styled Text component, so text is correctly wrapped. */}
-      <Logo>Registro</Logo>
-
-      <Label>Correo Electrónico</Label>
-      <Input
-        placeholder="correo@ejemplo.com"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <Label>Contraseña</Label>
-      <Input
-        placeholder="••••••••"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <Label>Número Telefónico</Label>
-      <Input
-        placeholder="60001234"
-        keyboardType="phone-pad"
-        value={telefono}
-        onChangeText={setTelefono}
-      />
-
-      {/* The Button is a TouchableOpacity, and its text is inside the ButtonText styled component. */}
-      <Button onPress={handleRegister} disabled={loading}>
-        <ButtonText>{loading ? 'Registrando...' : 'Registrarse'}</ButtonText>
-      </Button>
-    </Container>
+  // This hook runs every time the screen is focused.
+  // It's used here to handle the back action.
+  useFocusEffect(
+    useCallback(() => {
+      // You can add logic here if you need to do something when the screen is focused.
+      // For handling back press, you typically want to push the login screen
+      // so it's on the stack. The user will then be able to go back to it.
+      // Since this is a simple register screen, we don't need explicit back handling
+      // if the navigation stack is set up correctly (e.g., login -> register).
+      // The issue you're describing likely stems from the navigation flow itself.
+      // We will make sure the successful registration uses `replace` and the initial
+      // navigation uses `push` so the back button works as expected.
+    }, [])
   );
-};
+
+  const handleRegister = async () => { 
+    if (email.trim() === '' || password.trim() === '') { 
+      Alert.alert('Error', 'Por favor completa todos los campos'); 
+      return; 
+    } 
+
+    setLoading(true); 
+
+    try { 
+      const response = await fetch('http://0000243.xyz:8080/usuarios', { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json', 
+        }, 
+        body: JSON.stringify({ 
+          email: email, 
+          password: password, 
+        }), 
+      }); 
+
+      if (response.ok) { 
+        Alert.alert('Registro Exitoso', 'Te has registrado correctamente', [ 
+          // After successful registration, we use `replace` to remove the register screen
+          // from the stack, so the user can't go back to it after logging in.
+          { text: 'Aceptar', onPress: () => router.replace('/login') }, 
+        ]); 
+      } else { 
+        const errorData = await response.json(); 
+        Alert.alert( 
+          'Error de Registro', 
+          errorData.message || 'Ocurrió un error inesperado' 
+        ); 
+      } 
+    } catch (error) { 
+      console.error('Error durante el registro:', error); 
+      Alert.alert( 
+        'Error de Conexión', 
+        'No se pudo conectar al servidor. Por favor, inténtalo de nuevo.' 
+      ); 
+    } finally { 
+      setLoading(false); 
+    } 
+  }; 
+
+  return ( 
+    <Container> 
+      <Logo>Registro</Logo> 
+
+      <Label>Correo Electrónico</Label> 
+      <Input 
+        placeholder="correo@ejemplo.com" 
+        keyboardType="email-address" 
+        value={email} 
+        onChangeText={setEmail} 
+        autoCapitalize="none" 
+        autoCorrect={false} 
+      /> 
+
+      <Label>Contraseña</Label> 
+      <Input 
+        placeholder="••••••••" 
+        secureTextEntry 
+        value={password} 
+        onChangeText={setPassword} 
+      /> 
+
+      <Label>Número Telefónico</Label> 
+      <Input 
+        placeholder="60001234" 
+        keyboardType="phone-pad" 
+        value={telefono} 
+        onChangeText={setTelefono} 
+      />
+      
+      <Button onPress={handleRegister} disabled={loading}> 
+        <ButtonText>{loading ? 'Registrando...' : 'Registrarse'}</ButtonText> 
+      </Button> 
+    </Container> 
+  ); 
+}; 
+
 
 export default Formulario;
 
