@@ -98,9 +98,6 @@ export default function Index() {
   // Add state to prevent duplicate processing
   const [processingTaskIds, setProcessingTaskIds] = useState<Set<number>>(new Set());
 
-  // Track AI tasks that are pending approval (should not show in main task list)
-  const [pendingAiTaskIds, setPendingAiTaskIds] = useState<Set<string>>(new Set());
-
   // Function to fetch tasks from the server
   const fetchTasks = useCallback(async () => {
     const userId = getUserId();
@@ -122,29 +119,20 @@ export default function Index() {
 
       if (response.ok) {
         const data = await response.json();
-        const loadedTasks: Task[] = data
-          .filter((serverTask: any) => {
-            // Only show tasks that have been approved (have a proper fecha_inicio set)
-            // AI tasks initially have a default/placeholder time, approved tasks have the correct time
-            return serverTask.fecha_inicio && 
-                   serverTask.titulo && 
-                   serverTask.titulo.trim() !== '' &&
-                   !serverTask.pendiente_aprobacion; // Assuming the backend marks pending tasks
-          })
-          .map((serverTask: any) => {
-            // Parse fecha_inicio to get the hour
-            const startDate = new Date(serverTask.fecha_inicio);
-            const startHour = startDate.getHours();
+        const loadedTasks: Task[] = data.map((serverTask: any) => {
+          // Parse fecha_inicio to get the hour
+          const startDate = new Date(serverTask.fecha_inicio);
+          const startHour = startDate.getHours();
 
-            return {
-              id: serverTask.pk.toString(), // Use 'pk' as the ID
-              name: serverTask.titulo, // Map 'titulo' to 'name'
-              type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
-              description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
-              hours: serverTask.horas || 1, // Map 'horas' directly
-              startHour: startHour || 0, // Use the derived start hour
-            };
-          });
+          return {
+            id: serverTask.pk.toString(), // Use 'pk' as the ID
+            name: serverTask.titulo, // Map 'titulo' to 'name'
+            type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
+            description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
+            hours: serverTask.horas || 1, // Map 'horas' directly
+            startHour: startHour || 0, // Use the derived start hour
+          };
+        });
         setTasks(loadedTasks);
       } else {
         const errorData = await response.json();
