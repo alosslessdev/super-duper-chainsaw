@@ -1,3 +1,5 @@
+
+// Importaciones principales de librerías y componentes
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
@@ -5,106 +7,85 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native'; // Importa Alert
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
 import 'react-native-get-random-values';
 import styled from 'styled-components/native';
 import AnalogClock from '../(app)/analogClock';
 import { getAwsKeys } from '../clientKeyStore';
 import { colors } from '../styles/colors';
 
+// Interfaces para props de componentes estilizados
+interface BubbleProps { fromMe: boolean; }
+interface DayButtonProps { isSelected: boolean; }
+interface DayTextProps { isSelected: boolean; }
+interface DateTextProps { isSelected: boolean; }
 
-// Interfaces para styled-components
-interface BubbleProps {
-  fromMe: boolean;
-}
-
-interface DayButtonProps {
-  isSelected: boolean;
-}
-
-interface DayTextProps {
-  isSelected: boolean;
-}
-
-interface DateTextProps {
-  isSelected: boolean;
-}
-
+// Obtención de credenciales AWS y variables globales
 const { sessionCookie } = getAwsKeys();
-let url: string = ''; // Initialize url variable
+let url: string = ''; // URL del PDF subido
 
-const taskTypes = ['ocio', 'importante', 'liviana', 'descanso', 'general']; // Agregado 'general' para tareas de IA
+// Tipos y utilidades para tareas y fechas
+const taskTypes = ['ocio', 'importante', 'liviana', 'descanso', 'general'];
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
-
-// Helper function to format a date as 'YYYY-MM-DD' for consistent storage and comparison
 const formatDateToISO = (date: Date) => date.toISOString().split('T')[0];
 
+// Tipos de datos principales
 type Task = {
   id: string;
   name: string;
   type: string;
   description: string;
-  hours: number; // duración en horas
-  startHour: number; // hora de inicio 0-23
-  date: string; // New field: 'YYYY-MM-DD'
+  hours: number;
+  startHour: number;
+  date: string;
 };
-
 type ProcessedTask = {
   tarea: string;
   tiempoEstimado?: string;
   insertId: number;
   error?: string;
 };
-
 type Msg = {
   id: string;
   text: string;
   fromMe: boolean;
 };
 
-// --- Nuevas definiciones para tareas frecuentes ---
+// Plantillas de tareas frecuentes
 interface FrequentTaskTemplate {
   name: string;
   type: string;
   description: string;
   hours: number;
   startHour: number;
-  // Podrías añadir 'dayOfWeek?: number;' (0=Domingo, 6=Sábado) si quisieras agendar en días específicos
 }
 
-
-
+// Lista de tareas frecuentes predefinidas
 const FREQUENT_TASKS: FrequentTaskTemplate[] = [
   {
     name: 'Hacer Ejercicio',
     type: 'importante',
     description: 'Rutina de gimnasio',
     hours: 2,
-    startHour: 15, // 3 PM
+    startHour: 15,
   },
   {
     name: 'Comer',
     type: 'liviana',
     description: 'Cena familiar',
     hours: 2,
-    startHour: 18, // 6 PM
+    startHour: 18,
   },
   // Puedes añadir más tareas frecuentes aquí
-  // {
-  //   name: 'Estudiar Alemán',
-  //   type: 'ocio',
-  //   description: 'Repasar vocabulario',
-  //   hours: 1,
-  //   startHour: 20,
-  // },
 ];
-// --- Fin nuevas definiciones ---
 
-
+// Componente principal de la pantalla
 export default function Index() {
+  // Hooks de navegación y router
   const router = useRouter();
   const nav = useNavigation();
 
+  // Estados para entradas, mensajes, tareas, modales, etc.
   const [input, setInput] = useState<string>('');
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -112,31 +93,27 @@ export default function Index() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
 
-  // State for the currently selected date in the week view
+  // Estado para la fecha seleccionada en la vista semanal
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // For controlling add/edit task modal
+  // Estados para el modal de agregar/editar tarea
   const [taskName, setTaskName] = useState('');
   const [taskType, setTaskType] = useState<string>('ocio');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskHours, setTaskHours] = useState('1');
   const [taskStartHour, setTaskStartHour] = useState('0');
-  // New state for task date in modal, defaults to the currently selected view date
   const [taskDate, setTaskDate] = useState(formatDateToISO(new Date()));
 
-  // For editing mode
+  // Estados para edición y visibilidad de chat
   const [isEditing, setIsEditing] = useState(false);
-
-  // For showing/hiding chat
   const [chatVisible, setChatVisible] = useState(false);
 
-  // For AI processed tasks approval
+  // Estados para tareas sugeridas por IA
   const [aiProcessedTasks, setAiProcessedTasks] = useState<ProcessedTask[]>([]);
   const [aiApprovalModalVisible, setAiApprovalModalVisible] = useState(false);
 
-  // Formatted date for display based on selectedDate
+  // Formato de fecha para mostrar
   const isToday = formatDateToISO(selectedDate) === formatDateToISO(new Date());
-
   const formattedDisplayDate = `${selectedDate.toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
@@ -144,12 +121,11 @@ export default function Index() {
     year: 'numeric',
   })}${isToday ? ' (hoy)' : ''}`;
 
-
-  // Helper to get dates for the current week starting from Sunday
+  // Obtiene los días de la semana para la vista semanal
   const getWeekDays = (currentDate: Date) => {
     const days = [];
     const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay()); // Start from Sunday
+    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
     for (let i = 0; i < 7; i++) {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
@@ -157,32 +133,32 @@ export default function Index() {
     }
     return days;
   };
-
   const weekDays = getWeekDays(selectedDate);
 
-  // Function to send messages and simulate response
+  // Envía mensajes al chat y procesa archivos PDF con IA
   const sendMsg = async (pdfUrl: string, question: string) => {
-    if (!question.trim()) { // Allow empty question if PDF is being processed
-        setMsgs(cur => [
-            ...cur,
-            {
-                id: Date.now().toString() + '-ai-processing-start',
-                text: 'Procesando archivo con IA...',
-                fromMe: false,
-            },
-        ]);
+    if (!question.trim()) {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ai-processing-start',
+          text: 'Procesando archivo con IA...',
+          fromMe: false,
+        },
+      ]);
     } else {
-        const userMsg: Msg = {
-            id: Date.now().toString(),
-            text: question.trim(),
-            fromMe: true,
-        };
-        setMsgs(cur => [...cur, userMsg]);
-        setInput('');
+      const userMsg: Msg = {
+        id: Date.now().toString(),
+        text: question.trim(),
+        fromMe: true,
+      };
+      setMsgs(cur => [...cur, userMsg]);
+      setInput('');
     }
 
     setTimeout(async () => {
       try {
+        // Llama a la API para procesar el PDF y/o pregunta
         const response = await fetch('http://0000243.xyz:8080/tareas/ia/', {
           method: 'POST',
           headers: {
@@ -249,13 +225,14 @@ export default function Index() {
     }, 800);
   };
 
+  // Sube un archivo PDF a AWS S3 y luego lo envía a la IA
   const uploadFile = async () => {
     let fileNamePDF: string;
-    let PDFfileUri: string; // Renamed for clarity
+    let PDFfileUri: string;
 
     const result = await DocumentPicker.getDocumentAsync({
-      type: 'application/pdf', // Specify PDF type for better filtering
-      copyToCacheDirectory: true, // Crucial: Copy the file to the app's cache
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
     });
 
     const { secretKeyId, secretKey } = getAwsKeys();
@@ -263,25 +240,18 @@ export default function Index() {
     if (result.assets && result.assets.length > 0) {
       PDFfileUri = result.assets[0].uri;
       fileNamePDF = result.assets[0].name;
-
-      // Generate a more unique filename for S3 if desired (e.g., using a timestamp or UUID)
       fileNamePDF = `${Date.now()}-${fileNamePDF}`;
 
       try {
-        // Read the file content as base64
-        // For large files, consider reading as ArrayBuffer and creating a Blob/Buffer
+        // Lee el archivo como base64 y lo convierte a binario
         const fileContentBase64 = await FileSystem.readAsStringAsync(PDFfileUri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-
-        // Convert base64 to a Uint8Array or Buffer for S3
-        // Node.js environments can directly use Buffer.from(fileContentBase64, 'base64')
-        // For browser/Expo, you might need to convert it to a Blob or ArrayBuffer
-        // Since Expo runs in a React Native environment, Uint8Array is generally preferred for binary data.
         const decodedFile = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));
 
+        // Sube el archivo a S3
         const s3Client = new S3Client({
-          region: 'us-east-2', // set your region
+          region: 'us-east-2',
           credentials: {
             accessKeyId: secretKeyId ?? '',
             secretAccessKey: secretKey ?? '',
@@ -292,14 +262,13 @@ export default function Index() {
           new PutObjectCommand({
             Bucket: 'save-pdf-test',
             Key: fileNamePDF,
-            Body: decodedFile, // Pass the decoded file content
-            ContentType: 'application/pdf', // Specify content type
+            Body: decodedFile,
+            ContentType: 'application/pdf',
           })
         );
 
         if (response.ETag) {
-          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;  
-
+          url = `https://save-pdf-test.s3.us-east-2.amazonaws.com/${fileNamePDF}`;
           setMsgs(cur => [
             ...cur,
             {
@@ -312,7 +281,7 @@ export default function Index() {
         }
       } catch (err) {
         if (err instanceof Error) {
-          console.log('error while uploading', err); // Log the full error for debugging
+          console.log('error while uploading', err);
           setMsgs(cur => [
             ...cur,
             {
@@ -322,22 +291,20 @@ export default function Index() {
             },
           ]);
         }
-      } finally {
-        // Optional: Clean up the cached file if you don't need it anymore
-        // await FileSystem.deleteAsync(PDFfileUri, { idempotent: true });
       }
     } else {
       setMsgs(cur => [
         ...cur,
-          {
-            id: Date.now().toString() + '-upload-cancel',
-            text: 'Selección de archivo cancelada.',
-            fromMe: false,
-          },
-        ]);
-      }
-    };
+        {
+          id: Date.now().toString() + '-upload-cancel',
+          text: 'Selección de archivo cancelada.',
+          fromMe: false,
+        },
+      ]);
+    }
+  };
 
+  // Abre el modal para agregar o editar una tarea
   const openTaskModal = (task?: Task) => {
     if (task) {
       setTaskName(task.name);
@@ -345,7 +312,7 @@ export default function Index() {
       setTaskDescription(task.description);
       setTaskHours(task.hours.toString());
       setTaskStartHour(task.startHour.toString());
-      setTaskDate(task.date); // Set existing task date
+      setTaskDate(task.date);
       setSelectedTask(task);
       setIsEditing(true);
     } else {
@@ -354,16 +321,16 @@ export default function Index() {
       setTaskDescription('');
       setTaskHours('1');
       setTaskStartHour('0');
-      setTaskDate(formatDateToISO(selectedDate)); // Default to currently selected view date
+      setTaskDate(formatDateToISO(selectedDate));
       setSelectedTask(null);
       setIsEditing(false);
     }
     setModalVisible(true);
   };
 
+  // Guarda una tarea nueva o editada, validando conflictos y datos
   const saveTask = () => {
     if (!taskName.trim() || taskName.length > 20) {
-      // Replaced alert with custom message box as per instructions
       setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'El nombre debe tener máximo 20 caracteres.', fromMe: false }]);
       return;
     }
@@ -383,16 +350,14 @@ export default function Index() {
     }
 
     const end = start + duration;
-    const selectedTaskDate = taskDate; // Use the date from the modal
+    const selectedTaskDate = taskDate;
 
+    // Verifica conflictos de horario con otras tareas en la misma fecha
     for (const t of tasks) {
       if (isEditing && selectedTask && t.id === selectedTask.id) continue;
-
-      // Check for conflicts on the SAME DATE
       if (t.date === selectedTaskDate) {
         const tStart = t.startHour;
         const tEnd = t.startHour + t.hours;
-
         if (!(end <= tStart || start >= tEnd)) {
           setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Conflicto con tarea "${t.name}" programada el ${t.date} de ${tStart}:00 a ${tEnd}:00`, fromMe: false }]);
           return;
@@ -400,6 +365,7 @@ export default function Index() {
       }
     }
 
+    // Actualiza o agrega la tarea
     if (isEditing && selectedTask) {
       setTasks(cur =>
         cur.map(t =>
@@ -411,7 +377,7 @@ export default function Index() {
                 description: taskDescription.trim(),
                 hours: duration,
                 startHour: start,
-                date: selectedTaskDate, // Update date
+                date: selectedTaskDate,
               }
             : t
         )
@@ -424,22 +390,24 @@ export default function Index() {
         description: taskDescription.trim(),
         hours: duration,
         startHour: start,
-        date: selectedTaskDate, // Add date
+        date: selectedTaskDate,
       };
       setTasks(cur => [...cur, newTask]);
     }
 
+    // Limpia los estados y cierra el modal
     setTaskName('');
     setTaskType('ocio');
     setTaskDescription('');
     setTaskHours('1');
     setTaskStartHour('0');
-    setTaskDate(formatDateToISO(selectedDate)); // Reset to current view date
+    setTaskDate(formatDateToISO(selectedDate));
     setSelectedTask(null);
     setIsEditing(false);
     setModalVisible(false);
   };
 
+  // Abre el modal de edición de tarea
   const handleEdit = () => {
     if (selectedTask) {
       openTaskModal(selectedTask);
@@ -447,6 +415,7 @@ export default function Index() {
     setActionModalVisible(false);
   };
 
+  // Elimina una tarea seleccionada
   const handleDelete = () => {
     if (selectedTask) {
       setTasks(cur => cur.filter(t => t.id !== selectedTask.id));
@@ -454,16 +423,16 @@ export default function Index() {
     setActionModalVisible(false);
   };
 
+  // Acepta una tarea sugerida por IA y la agrega a la lista
   const handleAcceptProcessedTask = (taskToAccept: ProcessedTask) => {
-    // Convert ProcessedTask to Task type for the main task list
     const newTask: Task = {
-      id: taskToAccept.insertId.toString(), // Using insertId as the unique ID
+      id: taskToAccept.insertId.toString(),
       name: taskToAccept.tarea,
-      type: 'general', // You might want to infer or ask for the type
-      description: taskToAccept.tiempoEstimado || '', // Use tiempoEstimado as description or leave empty
-      hours: 1, // Default, you might want AI to provide this or ask the user
-      startHour: 0, // Default, you might want AI to provide this or ask the user
-      date: formatDateToISO(selectedDate), // Default to currently selected view date
+      type: 'general',
+      description: taskToAccept.tiempoEstimado || '',
+      hours: 1,
+      startHour: 0,
+      date: formatDateToISO(selectedDate),
     };
     setTasks(cur => [...cur, newTask]);
     setAiProcessedTasks(cur =>
@@ -479,15 +448,14 @@ export default function Index() {
     ]);
   };
 
+  // Rechaza una tarea sugerida por IA y la elimina del servidor
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
     try {
       const response = await fetch(
         `http://0000243.xyz:8080/tareas/por/${taskToReject.insertId}`,
         {
           method: 'DELETE',
-          headers: {
-            Cookie: sessionCookie,
-          },
+          headers: { Cookie: sessionCookie },
           credentials: 'include',
         }
       );
@@ -506,12 +474,8 @@ export default function Index() {
         setMsgs(cur => [
           ...cur,
           {
-            id:
-              Date.now().toString() +
-              `-reject-error-${taskToReject.insertId}`,
-            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${
-              errorData.error || response.statusText
-            }.`,
+            id: Date.now().toString() + `-reject-error-${taskToReject.insertId}`,
+            text: `Error al rechazar la tarea "${taskToReject.tarea}": ${errorData.error || response.statusText}.`,
             fromMe: false,
           },
         ]);
@@ -527,31 +491,27 @@ export default function Index() {
         },
       ]);
     } finally {
-      // Always remove from the approval list regardless of API success/failure
       setAiProcessedTasks(cur =>
         cur.filter(task => task.insertId !== taskToReject.insertId)
       );
     }
   };
 
+  // Cierra la sesión del usuario
   const handleLogout = async () => {
     try {
       const response = await fetch('http://0000243.xyz:8080/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Cookie: sessionCookie, // Send the cookie to ensure the correct session is logged out
+          Cookie: sessionCookie,
         },
         credentials: 'include',
       });
 
       if (response.ok) {
-        // Clear local session data if necessary (e.g., setAwsKeys to empty values)
-        // setAwsKeys('', '', ''); // This would require modifying setAwsKeys to clear.
-        // For now, simply navigate.
-        // Replaced alert with custom message box as per instructions
         setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Sesión cerrada exitosamente.', fromMe: false }]);
-        router.replace('/'); // Navigate to a login or initial screen
+        router.replace('/');
       } else {
         const errorData = await response.json();
         setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Error al cerrar sesión: ${errorData.error || response.statusText}`, fromMe: false }]);
@@ -562,63 +522,122 @@ export default function Index() {
     }
   };
 
-  // --- Nueva función para agregar tareas frecuentes ---
-  const addFrequentTasks = () => {
-    const tasksToAdd: Task[] = [];
-    const conflicts: string[] = [];
-    const selectedDateISO = formatDateToISO(selectedDate);
+// ...existing code...
 
-    FREQUENT_TASKS.forEach(template => {
-      const newStart = template.startHour;
-      const newEnd = template.startHour + template.hours;
+// Agrega tareas frecuentes a la fecha seleccionada, preguntando al usuario antes de cada una
+// Estado para almacenar las tareas frecuentes personalizadas del usuario
+const [frequentTasks, setFrequentTasks] = useState<Task[]>([]);
 
-      let hasConflict = false;
-      for (const existingTask of tasks) {
-        if (existingTask.date === selectedDateISO) {
-          const existingStart = existingTask.startHour;
-          const existingEnd = existingTask.startHour + existingTask.hours;
+// Función para marcar una tarea como frecuente (solo si no existe ya)
+const markTaskAsFrequent = (task: Task) => {
+  // Verifica si ya existe como frecuente (por nombre y tipo)
+  const exists = frequentTasks.some(
+    t => t.name === task.name && t.type === task.type
+  );
+  if (exists) {
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString(),
+        text: `La tarea "${task.name}" ya está marcada como frecuente.`,
+        fromMe: false,
+      },
+    ]);
+    return;
+  }
+  // Pregunta solo si no existe
+  Alert.alert(
+    'Agregar como frecuente',
+    `¿Deseas agregar la tarea "${task.name}" como frecuente?`,
+    [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí',
+        onPress: () => {
+          setFrequentTasks(cur => [...cur, task]);
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString(),
+              text: `Tarea "${task.name}" agregada a frecuentes.`,
+              fromMe: false,
+            },
+          ]);
+        },
+      },
+    ]
+  );
+};
 
-          // Check for overlap
-          if (!(newEnd <= existingStart || newStart >= existingEnd)) {
-            hasConflict = true;
-            conflicts.push(`"${template.name}" (${newStart}:00-${newEnd}:00) con "${existingTask.name}" (${existingStart}:00-${existingEnd}:00)`);
-            break; // No need to check other tasks for this template
-          }
+// Función para agregar todas las tareas frecuentes del usuario al día seleccionado
+const addFrequentTasks = () => {
+  const tasksToAdd: Task[] = [];
+  const conflicts: string[] = [];
+  const selectedDateISO = formatDateToISO(selectedDate);
+
+  frequentTasks.forEach(template => {
+    const newStart = template.startHour;
+    const newEnd = template.startHour + template.hours;
+
+    let hasConflict = false;
+    for (const existingTask of tasks) {
+      if (existingTask.date === selectedDateISO) {
+        const existingStart = existingTask.startHour;
+        const existingEnd = existingTask.startHour + existingTask.hours;
+        if (!(newEnd <= existingStart || newStart >= existingEnd)) {
+          hasConflict = true;
+          conflicts.push(
+            `"${template.name}" (${newStart}:00-${newEnd}:00) con "${existingTask.name}" (${existingStart}:00-${existingEnd}:00)`
+          );
+          break;
         }
       }
-
-      if (!hasConflict) {
-        tasksToAdd.push({
-          id: Date.now().toString() + '-' + template.name + '-' + Math.random().toString(36).substring(7), // Unique ID
-          name: template.name,
-          type: template.type,
-          description: template.description,
-          hours: template.hours,
-          startHour: template.startHour,
-          date: selectedDateISO,
-        });
-      }
-    });
-
-    if (conflicts.length > 0) {
-      Alert.alert(
-        'Conflictos de Horario',
-        `No se pudieron agregar algunas tareas frecuentes debido a conflictos de horario en la fecha seleccionada (${formattedDisplayDate}):\n\n${conflicts.join('\n')}\n\nPor favor, ajusta los horarios manualmente.`,
-        [{ text: 'OK' }]
-      );
     }
-    
-    if (tasksToAdd.length > 0) {
-      setTasks(currentTasks => [...currentTasks, ...tasksToAdd]);
-      setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Se agregaron ${tasksToAdd.length} tareas frecuentes para ${formattedDisplayDate}.`, fromMe: false }]);
-    } else if (conflicts.length === 0) {
-        setMsgs(cur => [...cur, { id: Date.now().toString(), text: `No hay tareas frecuentes para agregar o todas ya existen en ${formattedDisplayDate}.`, fromMe: false }]);
-    }
-  };
-  // --- Fin nueva función ---
 
+    if (!hasConflict) {
+      tasksToAdd.push({
+        ...template,
+        id: Date.now().toString() + '-' + template.name + '-' + Math.random().toString(36).substring(7),
+        date: selectedDateISO,
+      });
+    }
+  });
+
+  if (conflicts.length > 0) {
+    Alert.alert(
+      'Conflictos de Horario',
+      `No se pudieron agregar algunas tareas frecuentes debido a conflictos de horario en la fecha seleccionada (${formattedDisplayDate}):\n\n${conflicts.join('\n')}\n\nPor favor, ajusta los horarios manualmente.`,
+      [{ text: 'OK' }]
+    );
+  }
+
+  if (tasksToAdd.length > 0) {
+    setTasks(currentTasks => [...currentTasks, ...tasksToAdd]);
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString(),
+        text: `Se agregaron ${tasksToAdd.length} tareas frecuentes para ${formattedDisplayDate}.`,
+        fromMe: false,
+      },
+    ]);
+  } else if (conflicts.length === 0) {
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString(),
+        text: `No hay tareas frecuentes para agregar o todas ya existen en ${formattedDisplayDate}.`,
+        fromMe: false,
+      },
+    ]);
+  }
+};
+// ...existing code...
+
+  // Renderizado principal de la pantalla
   return (
     <>
+      {/* Header de la pantalla */}
       <Stack.Screen
         options={{
           title: '',
@@ -642,15 +661,17 @@ export default function Index() {
         }}
       />
 
+      {/* Contenido principal */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Container>
+          {/* Fecha y reloj */}
           <FechaText>{formattedDisplayDate}</FechaText>
           <AnalogClock />
 
-          {/* Week View */}
+          {/* Vista semanal */}
           <WeekViewContainer>
             <FlatList
               data={weekDays}
@@ -674,12 +695,13 @@ export default function Index() {
             <AddButton onPress={() => openTaskModal()}>
               <AddButtonText>+</AddButtonText>
             </AddButton>
-            {/* Nuevo botón para tareas frecuentes */}
+            {/* Botón para tareas frecuentes */}
             <AddFrequentButton onPress={addFrequentTasks}>
               <AddFrequentButtonText>📅 Frecuentes</AddFrequentButtonText>
             </AddFrequentButton>
           </ActionButtonsContainer>
           
+
           {/* Modal agregar/editar tarea */}
           <Modal
             visible={modalVisible}
@@ -918,7 +940,7 @@ export default function Index() {
       </KeyboardAvoidingView>
     </>
   );
-}
+};
 
 // --- Estilos ---
 
