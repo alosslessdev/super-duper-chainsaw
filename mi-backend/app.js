@@ -27,9 +27,9 @@ const PORT = process.env.PORT || (isProd ? 80 : 3000); // Puerto para escuchar
 const HOST = isProd ? '0.0.0.0' : 'localhost'; // Host para escuchar (0.0.0.0 para producción escucha en todas las interfaces)
 const corsOrigin = isProd ? process.env.CORS_ORIGIN_PROD : 'http://localhost:3000'; // Define el origen de CORS basado en el entorno
 
-var privateKey  = fs.readFileSync('/home/ubuntu/privkey.pem', 'utf8');
+/* var privateKey  = fs.readFileSync('/home/ubuntu/privkey.pem', 'utf8');
 var certificate = fs.readFileSync('/home/ubuntu/fullchain.pem', 'utf8');
-var credentials = {key: privateKey, cert: certificate};
+var credentials = {key: privateKey, cert: certificate}; */
 
 // Configurar CORS
 app.use(cors({
@@ -203,11 +203,14 @@ app.get('/tareas/por/:id', requireLogin, async (req, res) => {
 // Crear una nueva tarea
 app.post('/tareas', requireLogin, async (req, res) => {
   const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, horas } = req.body;
+  console.log(JSON.stringify(req.body) + "request body") 
   // Asignar siempre al usuario logueado
   const usuario = req.session.user?.id;
 
   // Format dates to MySQL DATETIME format
   const formattedFechaInicio = formatForMySQLDateTime(fecha_inicio);
+  console.log(formattedFechaInicio + "formattedFechaInicio") 
+
   const formattedFechaFin = formatForMySQLDateTime(fecha_fin);
 
     const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, horas)
@@ -299,7 +302,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     while (attempt < 2 && !jsonRepairSuccess) {
       try {
         response = await axios.post(
-          `https://octopus-app-jjamd.ondigitalocean.app:8000/secure-data`, // URL del servicio de IA
+          `http://localhost:8000/secure-data`, // URL del servicio de IA
           {
             pdf_url: pdfUrl, // URL del PDF (opcional)
             question: question // Pregunta para la IA
@@ -412,9 +415,9 @@ app.listen(PORT, HOST, () => {
   console.log(`Servidor corriendo en https://${HOST}:${PORT}`);
 });
 
-var httpsServer = https.createServer(credentials, app);
+/* var httpsServer = https.createServer(credentials, app);
 
-httpsServer.listen(443);
+httpsServer.listen(443); */
 
 
 // Manejo de errores del servidor (ej. puerto ya en uso)
