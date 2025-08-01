@@ -12,7 +12,7 @@ export default function SettingsScreen() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://0000243.xyz:8080/logout', {
+      const response = await fetch('http://0000243.xyz:80/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
