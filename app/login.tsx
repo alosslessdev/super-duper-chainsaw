@@ -281,6 +281,7 @@ const Input = styled.TextInput`
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 15px;
+  color: "#000000";
 `;
 
 const Button = styled.TouchableOpacity`
