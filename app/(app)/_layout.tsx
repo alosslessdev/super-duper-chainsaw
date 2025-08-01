@@ -23,6 +23,7 @@ export default function AppLayout() {
             headerShown: false,
           }}
         />
+
         <Drawer.Screen
           name="settings"
           options={{

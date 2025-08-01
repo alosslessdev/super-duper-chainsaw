@@ -1,4 +1,5 @@
 
+// Importaciones principales de librerías y componentes
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
@@ -13,30 +14,33 @@ import AnalogClock from '../(app)/analogClock';
 import { getAwsKeys, getUserId } from '../clientKeyStore'; // Import getUserId
 import { colors } from '../styles/colors';
 
+// Interfaces para props de componentes estilizados
+interface BubbleProps { fromMe: boolean; }
+interface DayButtonProps { isSelected: boolean; }
+interface DayTextProps { isSelected: boolean; }
+interface DateTextProps { isSelected: boolean; }
+
+// Obtención de credenciales AWS y variables globales
 const { sessionCookie } = getAwsKeys();
-let url: string; //url para archivo en AWS s3
+let url: string = ''; // URL del PDF subido
 
-const taskTypes = ['ocio', 'importante', 'liviana', 'descanso', 'general']; // Added 'general' for AI tasks
+// Tipos y utilidades para tareas y fechas
+const taskTypes = ['ocio', 'importante', 'liviana', 'descanso', 'general'];
 const hoursOfDay = Array.from({ length: 24 }, (_, i) => i.toString());
-const today = new Date();
-const formattedDate = today.toLocaleDateString('es-ES', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
+const formatDateToISO = (date: Date) => date.toISOString().split('T')[0];
 
+// Tipos de datos principales
 type Task = {
   id: string;
   name: string;
   type: string;
   description: string;
-  hours: number;
-  startHour: number;
+  hours: number; // duración en horas
+  startHour: number; // hora de inicio 0-23
   completed?: boolean; // Nueva propiedad
+  date: string;
 
 };
-
 type ProcessedTask = {
   tarea: string; // AI's suggested task name
   tiempoEstimado?: string; // AI's suggested estimated time (can map to description)
@@ -44,7 +48,6 @@ type ProcessedTask = {
   insertId: number; // ID for the processed task
   error?: string;
 };
-
 type Msg = {
   id: string;
   text: string;
@@ -53,7 +56,6 @@ type Msg = {
 
 const hourWidth = 30; // ancho fijo para cada hora
 const hours = Array.from({ length: 24 }, (_, i) => i);
-
 // Helper function to get current hour rounded to nearest hour
 const getCurrentHourRounded = (): number => {
   const now = new Date();
@@ -64,10 +66,42 @@ const getCurrentHourRounded = (): number => {
   return currentMinutes >= 30 ? (currentHour + 1) % 24 : currentHour;
 };
 
+
+// Plantillas de tareas frecuentes
+interface FrequentTaskTemplate {
+  name: string;
+  type: string;
+  description: string;
+  hours: number;
+  startHour: number;
+}
+
+// Lista de tareas frecuentes predefinidas
+const FREQUENT_TASKS: FrequentTaskTemplate[] = [
+  {
+    name: 'Hacer Ejercicio',
+    type: 'importante',
+    description: 'Rutina de gimnasio',
+    hours: 2,
+    startHour: 15,
+  },
+  {
+    name: 'Comer',
+    type: 'liviana',
+    description: 'Cena familiar',
+    hours: 2,
+    startHour: 18,
+  },
+  // Puedes añadir más tareas frecuentes aquí
+];
+
+// Componente principal de la pantalla
 export default function Index() {
+  // Hooks de navegación y router
   const router = useRouter();
   const nav = useNavigation();
 
+  // Estados para entradas, mensajes, tareas, modales, etc.
   const [input, setInput] = useState<string>('');
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -75,20 +109,22 @@ export default function Index() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
 
-  // Para controlar modal agregar/editar
+  // Estado para la fecha seleccionada en la vista semanal
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Estados para el modal de agregar/editar tarea
   const [taskName, setTaskName] = useState('');
   const [taskType, setTaskType] = useState<string>('ocio');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskHours, setTaskHours] = useState('1');
   const [taskStartHour, setTaskStartHour] = useState('0');
+  const [taskDate, setTaskDate] = useState(formatDateToISO(new Date()));
 
-  // Para editar
+  // Estados para edición y visibilidad de chat
   const [isEditing, setIsEditing] = useState(false);
-
-  // Para mostrar u ocultar chat
   const [chatVisible, setChatVisible] = useState(false);
 
-  // For AI processed tasks approval
+  // Estados para tareas sugeridas por IA
   const [aiProcessedTasks, setAiProcessedTasks] = useState<ProcessedTask[]>([]);
   const [aiApprovalModalVisible, setAiApprovalModalVisible] = useState(false);
 
@@ -209,6 +245,31 @@ export default function Index() {
     }
     return -1; // No available slot found
   }, []);
+
+  // Formato de fecha para mostrar
+  const isToday = formatDateToISO(selectedDate) === formatDateToISO(new Date());
+  const formattedDisplayDate = `${selectedDate.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })}${isToday ? ' (hoy)' : ''}`;
+
+  // Obtiene los días de la semana para la vista semanal
+  const getWeekDays = (currentDate: Date) => {
+    const days = [];
+    const startOfWeek = new Date(currentDate);
+    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+  const weekDays = getWeekDays(selectedDate);
+
+  // Envía mensajes al chat y procesa archivos PDF con IA
   
   // A new function to handle rejection and deletion of multiple tasks
   const rejectPendingTasks = useCallback(async (tasksToReject: ProcessedTask[]) => {
@@ -254,7 +315,19 @@ export default function Index() {
           fromMe: false,
         },
       ]);
+    if (!question.trim()) {
+      setMsgs(cur => [
+        ...cur,
+        {
+          id: Date.now().toString() + '-ai-processing-start',
+          text: 'Procesando archivo con IA...',
+          fromMe: false,
+        },
+      ]);
     } else {
+      
+      setMsgs(cur => [...cur, userMsg]);
+      setInput('');
       const userMsg: Msg = {
         id: Date.now().toString(),
         text: question.trim(),
@@ -266,7 +339,8 @@ export default function Index() {
 
     setTimeout(async () => {
       try {
-        const response = await fetch('http://0000243.xyz:80/tareas/ia/', {
+        // Llama a la API para procesar el PDF y/o pregunta
+        const response = await fetch('http://0000243.xyz:8080/tareas/ia/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -336,6 +410,7 @@ export default function Index() {
     }, 800);
   };
 
+  // Sube un archivo PDF a AWS S3 y luego lo envía a la IA
   const uploadFile = async () => {
     let fileNamePDF: string;
     let PDFfileUri: string; // Renamed for clarity
@@ -426,7 +501,7 @@ export default function Index() {
     }
   };
 
-
+  // Abre el modal para agregar o editar una tarea
   const openTaskModal = (task?: Task) => {
     if (task) {
       setTaskName(task.name);
@@ -434,6 +509,7 @@ export default function Index() {
       setTaskDescription(task.description);
       setTaskHours(task.hours.toString());
       setTaskStartHour(task.startHour.toString());
+      setTaskDate(task.date);
       setSelectedTask(task);
       setIsEditing(true);
     } else {
@@ -442,6 +518,7 @@ export default function Index() {
       setTaskDescription('');
       setTaskHours('1');
       setTaskStartHour('0');
+      setTaskDate(formatDateToISO(selectedDate));
       setSelectedTask(null);
       setIsEditing(false);
     }
@@ -626,11 +703,13 @@ export default function Index() {
     setTaskDescription('');
     setTaskHours('1');
     setTaskStartHour('0');
+    setTaskDate(formatDateToISO(selectedDate));
     setSelectedTask(null);
     setIsEditing(false);
     setModalVisible(false);
   }
 
+  // Abre el modal de edición de tarea
   const handleEdit = () => {
     if (selectedTask) {
       openTaskModal(selectedTask);
@@ -827,6 +906,7 @@ export default function Index() {
   };
 
 
+  // Rechaza una tarea sugerida por IA y la elimina del servidor
   const handleRejectProcessedTask = async (taskToReject: ProcessedTask) => {
     // Prevent duplicate processing
     if (processingTaskIds.has(taskToReject.insertId)) {
@@ -842,9 +922,7 @@ export default function Index() {
         `http://0000243.xyz:80/tareas/${taskToReject.insertId}`,
         {
           method: 'DELETE',
-          headers: {
-            Cookie: sessionCookie,
-          },
+          headers: { Cookie: sessionCookie },
           credentials: 'include',
         }
       );
@@ -883,7 +961,6 @@ export default function Index() {
         },
       ]);
     } finally {
-      // Always remove from the approval list regardless of API success/failure
       setAiProcessedTasks(cur =>
         cur.filter(task => task.insertId !== taskToReject.insertId)
       );
@@ -900,30 +977,28 @@ export default function Index() {
     }
   };
 
+  // Cierra la sesión del usuario
   const handleLogout = async () => {
     try {
       const response = await fetch('http://0000243.xyz:80/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Cookie: sessionCookie, // Send the cookie to ensure the correct session is logged out
+          Cookie: sessionCookie,
         },
         credentials: 'include',
       });
 
       if (response.ok) {
-        // Clear local session data if necessary (e.g., setAwsKeys to empty values)
-        // setAwsKeys('', '', ''); // This would require modifying setAwsKeys to clear.
-        // For now, simply navigate.
-        alert('Sesión cerrada exitosamente.');
-        router.replace('/'); // Navigate to a login or initial screen
+        setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Sesión cerrada exitosamente.', fromMe: false }]);
+        router.replace('/');
       } else {
         const errorData = await response.json();
-        alert(`Error al cerrar sesión: ${errorData.error || response.statusText}`);
+        setMsgs(cur => [...cur, { id: Date.now().toString(), text: `Error al cerrar sesión: ${errorData.error || response.statusText}`, fromMe: false }]);
       }
     } catch (err) {
       console.error('Logout error:', err);
-      alert('Error de conexión al intentar cerrar sesión.');
+      setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Error de conexión al intentar cerrar sesión.', fromMe: false }]);
     }
   };
   
@@ -935,7 +1010,118 @@ export default function Index() {
 
 
 
-  const FechaText = styled.Text`
+// ...existing code...
+
+// Agrega tareas frecuentes a la fecha seleccionada, preguntando al usuario antes de cada una
+// Estado para almacenar las tareas frecuentes personalizadas del usuario
+const [frequentTasks, setFrequentTasks] = useState<Task[]>([]);
+
+// Función para marcar una tarea como frecuente (solo si no existe ya)
+const markTaskAsFrequent = (task: Task) => {
+  // Verifica si ya existe como frecuente (por nombre y tipo)
+  const exists = frequentTasks.some(
+    t => t.name === task.name && t.type === task.type
+  );
+  if (exists) {
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString(),
+        text: `La tarea "${task.name}" ya está marcada como frecuente.`,
+        fromMe: false,
+      },
+    ]);
+    return;
+  }
+  // Pregunta solo si no existe
+  Alert.alert(
+    'Agregar como frecuente',
+    `¿Deseas agregar la tarea "${task.name}" como frecuente?`,
+    [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí',
+        onPress: () => {
+          setFrequentTasks(cur => [...cur, task]);
+          setMsgs(cur => [
+            ...cur,
+            {
+              id: Date.now().toString(),
+              text: `Tarea "${task.name}" agregada a frecuentes.`,
+              fromMe: false,
+            },
+          ]);
+        },
+      },
+    ]
+  );
+};
+
+// Función para agregar todas las tareas frecuentes del usuario al día seleccionado
+const addFrequentTasks = () => {
+  const tasksToAdd: Task[] = [];
+  const conflicts: string[] = [];
+  const selectedDateISO = formatDateToISO(selectedDate);
+
+  frequentTasks.forEach(template => {
+    const newStart = template.startHour;
+    const newEnd = template.startHour + template.hours;
+
+    let hasConflict = false;
+    for (const existingTask of tasks) {
+      if (existingTask.date === selectedDateISO) {
+        const existingStart = existingTask.startHour;
+        const existingEnd = existingTask.startHour + existingTask.hours;
+        if (!(newEnd <= existingStart || newStart >= existingEnd)) {
+          hasConflict = true;
+          conflicts.push(
+            `"${template.name}" (${newStart}:00-${newEnd}:00) con "${existingTask.name}" (${existingStart}:00-${existingEnd}:00)`
+          );
+          break;
+        }
+      }
+    }
+
+    if (!hasConflict) {
+      tasksToAdd.push({
+        ...template,
+        id: Date.now().toString() + '-' + template.name + '-' + Math.random().toString(36).substring(7),
+        date: selectedDateISO,
+      });
+    }
+  });
+
+  if (conflicts.length > 0) {
+    Alert.alert(
+      'Conflictos de Horario',
+      `No se pudieron agregar algunas tareas frecuentes debido a conflictos de horario en la fecha seleccionada (${formattedDisplayDate}):\n\n${conflicts.join('\n')}\n\nPor favor, ajusta los horarios manualmente.`,
+      [{ text: 'OK' }]
+    );
+  }
+
+  if (tasksToAdd.length > 0) {
+    setTasks(currentTasks => [...currentTasks, ...tasksToAdd]);
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString(),
+        text: `Se agregaron ${tasksToAdd.length} tareas frecuentes para ${formattedDisplayDate}.`,
+        fromMe: false,
+      },
+    ]);
+  } else if (conflicts.length === 0) {
+    setMsgs(cur => [
+      ...cur,
+      {
+        id: Date.now().toString(),
+        text: `No hay tareas frecuentes para agregar o todas ya existen en ${formattedDisplayDate}.`,
+        fromMe: false,
+      },
+    ]);
+  }
+};
+// ...existing code...
+const FechaText = styled.Text`
     font-size: 18px;
     font-weight: bold;
     color: #2c3e50;
@@ -960,9 +1146,10 @@ export default function Index() {
     }
   };
 
-
+  // Renderizado principal de la pantalla
   return (
     <>
+      {/* Header de la pantalla */}
       <Stack.Screen
         options={{
           title: '',
@@ -986,17 +1173,46 @@ export default function Index() {
         }}
       />
 
+      {/* Contenido principal */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Container>
-          <FechaText>{formattedDate}</FechaText>
+          {/* Fecha y reloj */}
+          <FechaText>{formattedDisplayDate}</FechaText>
           <AnalogClock />
 
-          <AddButton onPress={() => openTaskModal()}>
-            <AddButtonText>+</AddButtonText>
-          </AddButton>
+          {/* Vista semanal */}
+          <WeekViewContainer>
+            <FlatList
+              data={weekDays}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={item => formatDateToISO(item)}
+              renderItem={({ item }) => {
+                const isSelected = formatDateToISO(item) === formatDateToISO(selectedDate);
+                return (
+                  <DayButton onPress={() => setSelectedDate(item)} isSelected={isSelected}>
+                    <DayText isSelected={isSelected}>{item.toLocaleDateString('es-ES', { weekday: 'short' })}</DayText>
+                    <DateText isSelected={isSelected}>{item.getDate()}</DateText>
+                  </DayButton>
+                );
+              }}
+            />
+          </WeekViewContainer>
+
+          {/* Botones de acción */}
+          <ActionButtonsContainer>
+            <AddButton onPress={() => openTaskModal()}>
+              <AddButtonText>+</AddButtonText>
+            </AddButton>
+            {/* Botón para tareas frecuentes */}
+            <AddFrequentButton onPress={addFrequentTasks}>
+              <AddFrequentButtonText>📅 Frecuentes</AddFrequentButtonText>
+            </AddFrequentButton>
+          </ActionButtonsContainer>
+          
 
           {/* Modal agregar/editar tarea */}
           <Modal
@@ -1037,6 +1253,12 @@ export default function Index() {
                   onChangeText={setTaskDescription}
                   maxLength={50}
                   placeholder="Detalles adicionales"
+                />
+
+                <InputLabel>Fecha:</InputLabel>
+                <TextInputStyled
+                  value={taskDate}
+                  editable= {false} // Make it read-only, date is selected via week view
                 />
 
                 <InputLabel>Hora de inicio (0-23):</InputLabel>
@@ -1166,7 +1388,7 @@ export default function Index() {
             <LoadingText>Cargando tareas...</LoadingText>
           ) : (
             <FlatList
-              data={tasks}
+              data={tasks.filter(task => task.date === formatDateToISO(selectedDate))}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
                 <TouchableTaskItem
@@ -1180,7 +1402,7 @@ export default function Index() {
                   <TaskType>{item.type}</TaskType>
                   <TaskDesc>{item.description}</TaskDesc>
                   <TaskHours>
-                    De {item.startHour}:00 a {item.startHour + item.hours}:00 (
+                    {item.date} | De {item.startHour}:00 a {item.startHour + item.hours}:00 (
                     {item.hours} h)
                   </TaskHours>
                 </TouchableTaskItem>
@@ -1193,7 +1415,7 @@ export default function Index() {
           )}
 
 
-          {/* Botón flotante para abrir chat */}
+          {/* Floating button to open chat */}
           {!chatVisible && (
             <ChatOpenButton onPress={() => setChatVisible(true)}>
               <ChatOpenButtonText>💬</ChatOpenButtonText>
@@ -1220,7 +1442,7 @@ export default function Index() {
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (
                   <Bubble fromMe={item.fromMe}>
-                    <BubbleText>{item.text}</BubbleText>
+                    <BubbleText fromMe={item.fromMe}>{item.text}</BubbleText>
                   </Bubble>
                 )}
                 contentContainerStyle={{ padding: 16, flexGrow: 1 }}
@@ -1246,28 +1468,50 @@ export default function Index() {
       </KeyboardAvoidingView>
     </>
   );
-}
-
-
+};
 
 // --- Estilos ---
 
-const Bubble = styled.View.withConfig({}) <{ fromMe: boolean }>`
+const FechaText = styled.Text`
+  font-size: 18px;
+  font-weight: bold;
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 10px;
+  text-transform: capitalize;
+`;
+
+// Las interfaces ya estaban definidas al principio, no es necesario repetirlas aquí.
+// interface BubbleProps {
+//   fromMe: boolean;
+// }
+
+// interface DayButtonProps {
+//   isSelected: boolean;
+// }
+
+// interface DayTextProps {
+//   isSelected: boolean;
+// }
+
+// interface DateTextProps {
+//   isSelected: boolean;
+// }
+
+const Bubble = styled.View<BubbleProps>`
   margin-vertical: 4px;
   padding: 12px;
   max-width: 70%;
   border-radius: 12px;
-  background-color: ${(props: { fromMe: any; }) => (props.fromMe ? '#0A84FF' : '#E5E5EA')};
-  align-self: ${(props: { fromMe: any; }) => (props.fromMe ? 'flex-end' : 'flex-start')};
+
 `;
 
-const BubbleText = styled.Text`
-  color: ${(props: { fromMe: any; }) => (props.fromMe ? '#ffffff' : '#000000')};
+const BubbleText = styled.Text<BubbleProps>`
   font-size: 16px;
 `;
 
 const Container = styled.View`
-  flex: 1;
+  flex: 1;  
   background-color: #fff;
   padding: 16px;
 `;
@@ -1321,6 +1565,13 @@ const SendText = styled.Text`
   font-weight: bold;
 `;
 
+const ActionButtonsContainer = styled.View`
+  flex-direction: row;
+  justify-content: center; /* Centra los botones */
+  align-items: center;
+  margin: 16px 0;
+`;
+
 const AddButton = styled.TouchableOpacity`
   background-color: #0A84FF;
   width: 60px;
@@ -1328,11 +1579,11 @@ const AddButton = styled.TouchableOpacity`
   border-radius: 30px;
   justify-content: center;
   align-items: center;
-  margin: 16px auto;
   shadow-color: #000;
   shadow-opacity: 0.3;
   shadow-radius: 5px;
   elevation: 5;
+  margin-right: 10px; /* Espacio entre botones */
 `;
 
 const AddButtonText = styled.Text`
@@ -1341,6 +1592,26 @@ const AddButtonText = styled.Text`
   line-height: 36px;
   font-weight: bold;
 `;
+
+// --- Nuevos estilos para el botón de tareas frecuentes ---
+const AddFrequentButton = styled.TouchableOpacity`
+  background-color: #28a745; /* Un color diferente para distinguirlo */
+  padding: 10px 20px;
+  border-radius: 30px;
+  justify-content: center;
+  align-items: center;
+  shadow-color: #000;
+  shadow-opacity: 0.3;
+  shadow-radius: 5px;
+  elevation: 5;
+`;
+
+const AddFrequentButtonText = styled.Text`
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+`;
+// --- Fin nuevos estilos ---
 
 const PickerStyled = styled(RNPicker).attrs(() => ({
   mode: 'dropdown',
@@ -1363,7 +1634,7 @@ const ModalContainer = styled.View`
   border-radius: 12px;
   padding: 20px;
   elevation: 10;
-  max-height: 80%; /* Added to prevent modal from overflowing on smaller screens */
+  max-height: 80%;
 `;
 
 const ModalTitle = styled.Text`
@@ -1441,6 +1712,7 @@ const ModalButtonComplete = styled.Pressable`
   align-items: center;
 `;
 
+
 const ModalButtonText = styled.Text`
   color: #fff;            /* White color to contrast with the red button */
   font-size: 16px;        /* A readable font size */
@@ -1465,9 +1737,9 @@ const TaskDesc = styled.Text`
 `;
 
 const TaskHours = styled.Text`
-  margin-top: 4px;
-  font-weight: 600;
-  color: #444;
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
 `;
 
 const TouchableTaskItem = styled.TouchableOpacity<{ $bg: string }>`
@@ -1477,60 +1749,78 @@ const TouchableTaskItem = styled.TouchableOpacity<{ $bg: string }>`
   margin-bottom: 10px;
 `;
 
-// Estilos para el chat
+const WeekViewContainer = styled.View`
+  height: 80px; /* Altura fija para la vista semanal */
+  margin-bottom: 10px;
+`;
+
+const DayButton = styled.TouchableOpacity<DayButtonProps>`
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-horizontal: 4px;
+  align-items: center;
+  justify-content: center;
+  
+`;
+
+const DayText = styled.Text<DayTextProps>`
+  font-size: 14px;
+  font-weight: bold;
+  
+`;
+
+const DateText = styled.Text<DateTextProps>`
+  font-size: 18px;
+  font-weight: bold;
+`;
 
 const ChatOpenButton = styled.TouchableOpacity`
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
   background-color: #0A84FF;
-  width: 60px;
-  height: 60px;
-  border-radius: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
   justify-content: center;
   align-items: center;
-  position: absolute;
-  bottom: 30px;
-  right: 20px;
-  shadow-color: #000;
-  shadow-opacity: 0.3;
-  shadow-radius: 5px;
   elevation: 5;
 `;
 
 const ChatOpenButtonText = styled.Text`
-  color: white;
-  font-size: 28px;
+  font-size: 24px;
 `;
 
 const ChatContainer = styled.View`
   flex: 1;
-  background-color: white;
-  padding: 12px;
+  background-color: #f0f0f0;
 `;
 
 const ChatHeader = styled.View`
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 10px;
-  border-bottom-width: 1px;
-  border-color: #ddd;
+  padding: 15px;
+  background-color: ${colors.primary};
 `;
 
 const ChatTitle = styled.Text`
+  color: white;
   font-size: 20px;
   font-weight: bold;
 `;
 
 const CloseButton = styled.TouchableOpacity`
-  padding: 6px 12px;
+  padding: 5px;
 `;
 
 const CloseButtonText = styled.Text`
+  color: white;
   font-size: 24px;
-  color: #888;
 `;
 
 const UploadButton = styled.TouchableOpacity`
-  background-color: #0A84FF;
+  background-color: #6c757d;
   padding: 10px 12px;
   border-radius: 20px;
   margin-right: 8px;
@@ -1542,12 +1832,12 @@ const UploadButtonText = styled.Text`
 `;
 
 const AITaskItem = styled.View`
-  background-color: #f8f8f8;
+  background-color: #f8d7da; /* Color para tareas de IA pendientes */
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 10px;
-  border-width: 1px;
-  border-color: #eee;
+  border-left-width: 5px;
+  border-left-color: #dc3545;
 `;
 
 
@@ -1564,3 +1854,5 @@ const EmptyListText = styled.Text`
   font-size: 16px;
   color: #777;
 `;
+
+}
