@@ -1,94 +1,80 @@
-// autenticacion de google para google calendar que sera luego del semestral
-import React from 'react';
-import * as WebBrowser from 'expo-web-browser';
+// app/googleAuthCalendar.ts (or wherever your hook is located)
+// quizas eliminar 
 import * as Google from 'expo-auth-session/providers/google';
-import { setGoogleAccessToken } from './awsKeyStore'; // Import the function to store the token
+import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 
-// This line is important for handling redirects in Expo Go
+// This is important for Expo AuthSession to work correctly with redirects on web
 WebBrowser.maybeCompleteAuthSession();
 
-/**
- * IMPORTANT: Replace 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com'
- * with your actual Web Client ID from Google Cloud Console.
- *
- * Make sure to configure the Authorized redirect URIs in Google Cloud Console:
- * For Expo Go, it's typically 'exp://YOUR_LOCAL_IP:YOUR_PORT'
- * For standalone apps, it's 'https://auth.expo.io/@your-username/your-app-slug'
- */
-const CLIENT_ID = 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
-
-// Define the scopes required for Google Calendar API access
-const SCOPES = [
-  'openid', // Required for basic user info
-  'profile', // Access to user's profile information
-  'email', // Access to user's email address
-  'https://www.googleapis.com/auth/calendar.events', // Read/write access to calendar events
-  'https://www.googleapis.com/auth/calendar', // Full access to calendars
-];
-
-/**
- * Custom hook for Google authentication.
- * Handles the OAuth flow and stores the access token.
- * @returns An object containing `signInWithGoogle` function, `request` object, and `response` object.
- */
 export const useGoogleAuth = () => {
-  // `useAuthRequest` hook from expo-auth-session/providers/google
-  // It manages the state and logic for the OAuth flow.
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null); // State to store user email
+
+  // Use the useAuthRequest hook from expo-auth-session/providers/google
+  // client ID comes from your app.json -> android.config.googleSignIn.webClientId
+  // The scopes below request access to the user's profile, email, and openid for identification.
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: CLIENT_ID,
-    scopes: SCOPES,
+    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com', // Optional, but good practice if you have a specific Android client
+    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com', // Only needed if targeting iOS
+    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com', // MANDATORY: Use the Web client ID here from Google Cloud Console
+    scopes: ['profile', 'email', 'openid'], // Request profile and email scopes
   });
 
-  // useEffect to handle the response from the Google authentication flow
-  // This runs whenever the `response` object changes.
-  React.useEffect(() => {
+  useEffect(() => {
     if (response?.type === 'success') {
       const { authentication } = response;
+      setAccessToken(authentication?.accessToken || null);
+      // Once we have an access token, fetch user info to get the email
       if (authentication?.accessToken) {
-        // Store the obtained access token securely
-        setGoogleAccessToken(authentication.accessToken);
-        console.log('Google Access Token obtained successfully.');
-        // You can add further logic here, like navigating to a new screen
-        // or showing a success message to the user.
-      } else {
-        console.error('Google authentication successful, but no access token found.');
+        fetchUserInfo(authentication.accessToken);
       }
     } else if (response?.type === 'error') {
-      console.error('Google authentication error:', response.error);
-    } else if (response?.type === 'cancel') {
-      console.log('Google login cancelled by user.');
-    } else if (response?.type === 'dismiss') {
-      console.log('Google login dismissed (e.g., user closed browser tab).');
+      Alert.alert('Google Sign-In Error', response.error?.message || 'Something went wrong during Google sign-in.');
     }
-  }, [response]); // Dependency array: runs when 'response' changes
+  }, [response]);
 
-  /**
-   * Initiates the Google sign-in process.
-   * @returns A Promise that resolves to true if login was successful, false otherwise.
-   */
+  const fetchUserInfo = async (token: string) => {
+    try {
+      const userInfoResponse = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const userInfo = await userInfoResponse.json();
+      if (userInfoResponse.ok) {
+        setUserEmail(userInfo.email); // Extract the email
+        console.log('User Info:', userInfo); // Log full user info for debugging
+      } else {
+        console.error('Failed to fetch user info:', userInfo);
+        setUserEmail(null);
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      setUserEmail(null);
+    }
+  };
+
   const signInWithGoogle = async (): Promise<boolean> => {
     try {
-      // Ensure the request object is ready before prompting
-      if (!request) {
-        console.error('Google auth request is not ready. Check client ID and scopes.');
-        return false;
-      }
-      // `promptAsync` opens the browser for the user to authenticate with Google
-      const result = await promptAsync();
-
-      // The `useEffect` above will handle the 'success' case and token storage.
-      // This function primarily reports the immediate outcome of the prompt.
+      const result = await promptAsync(); // Triggers the Google sign-in flow
       if (result.type === 'success') {
+        // The useEffect above will handle setting accessToken and fetching user info
         return true;
+      } else if (result.type === 'dismiss') {
+        // User dismissed the login prompt
+        Alert.alert('Sign-In Cancelled', 'You cancelled the Google sign-in process.');
+        return false;
       } else {
-        // Handle other response types like 'cancel', 'dismiss', 'error'
+        // Other error types from AuthSession
+        Alert.alert('Sign-In Failed', 'Could not complete Google sign-in.');
         return false;
       }
-    } catch (e) {
-      console.error('Error during Google sign-in process:', e);
+    } catch (error) {
+      console.error('Error during Google sign-in:', error);
+      Alert.alert('Error', 'An unexpected error occurred during Google sign-in.');
       return false;
     }
   };
 
-  return { signInWithGoogle, request, response };
+  return { signInWithGoogle, request, userEmail, accessToken }; // Expose userEmail
 };
