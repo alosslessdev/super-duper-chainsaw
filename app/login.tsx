@@ -281,7 +281,7 @@ const Label = styled.Text`
 `;
 
 const Input = styled.TextInput`
-  background-color: ${colors.black};
+  background-color: ${colors.white};
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 15px;
