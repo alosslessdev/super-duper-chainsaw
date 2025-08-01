@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://localhost",
+      "url": "http://localhost:3000",
       "description": "Servidor de desarrollo local"
     },
     {

@@ -35,7 +35,7 @@ const Formulario = () => {
     setLoading(true); 
 
     try { 
-      const response = await fetch('https://0000243.xyz/usuarios', { 
+      const response = await fetch('https://octopus-app-jjamd.ondigitalocean.app/usuarios', { 
         method: 'POST', 
         headers: { 
           'Content-Type': 'application/json', 

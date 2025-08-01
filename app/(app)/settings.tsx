@@ -12,7 +12,7 @@ export default function SettingsScreen() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('https://0000243.xyz/logout', {
+      const response = await fetch('https://octopus-app-jjamd.ondigitalocean.app/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

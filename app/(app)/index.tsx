@@ -59,7 +59,7 @@ const getCurrentHourRounded = (): number => {
   const now = new Date();
   const currentHour = now.getHours();
   const currentMinutes = now.getMinutes();
-  
+  console.log(currentMinutes >= 30 ? (currentHour + 1) % 24 : currentHour + "curreentminutes")
   // Round to nearest hour (if >= 30 minutes, round up)
   return currentMinutes >= 30 ? (currentHour + 1) % 24 : currentHour;
 };
