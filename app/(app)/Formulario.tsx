@@ -35,7 +35,7 @@ const Formulario = () => {
     setLoading(true); 
 
     try { 
-      const response = await fetch('https://0000243.xyz:80/usuarios', { 
+      const response = await fetch('https://0000243.xyz/usuarios', { 
         method: 'POST', 
         headers: { 
           'Content-Type': 'application/json', 
