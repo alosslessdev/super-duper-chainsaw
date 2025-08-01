@@ -147,7 +147,7 @@ export default function Index() {
 
     setIsLoadingTasks(true);
     try {
-      const response = await fetch(`http://0000243.xyz:8080/tareas/de/${userId}`, {
+      const response = await fetch(`http://0000243.xyz:80/tareas/de/${userId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -270,6 +270,41 @@ export default function Index() {
   const weekDays = getWeekDays(selectedDate);
 
   // Envía mensajes al chat y procesa archivos PDF con IA
+  
+  // A new function to handle rejection and deletion of multiple tasks
+  const rejectPendingTasks = useCallback(async (tasksToReject: ProcessedTask[]) => {
+    if (tasksToReject.length === 0) return;
+
+    // Use Promise.all to handle multiple DELETE requests concurrently
+    await Promise.all(
+      tasksToReject.map(async (taskToReject) => {
+        try {
+          const response = await fetch(
+            `http://0000243.xyz:80/tareas/${taskToReject.insertId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Cookie: sessionCookie,
+              },
+              credentials: 'include',
+            }
+          );
+          if (response.ok) {
+            console.log(`Task ${taskToReject.insertId} deleted successfully.`);
+          } else {
+            console.error(`Failed to delete task ${taskToReject.insertId}:`, await response.text());
+          }
+        } catch (err) {
+          console.error(`Network error while deleting task ${taskToReject.insertId}:`, err);
+        }
+      })
+    );
+    // After attempting to delete all, clear the pending list and the AI approval modal state
+    setAiProcessedTasks([]);
+    setAiApprovalModalVisible(false);
+  }, [sessionCookie]);
+
+  // Function to send messages and generate simulated response
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
       setMsgs(cur => [
@@ -580,8 +615,8 @@ export default function Index() {
                 try {
                   const method = isEditing && selectedTask ? 'PUT' : 'POST';
                   const url = isEditing && selectedTask
-                    ? `http://0000243.xyz:8080/tareas/${selectedTask.id}`
-                    : 'http://0000243.xyz:8080/tareas'; //to fix
+                    ? `http://0000243.xyz:80/tareas/${selectedTask.id}`
+                    : 'http://0000243.xyz:80/tareas'; //to fix
 
                   const response = await fetch(url, {
                     method: method,
@@ -635,8 +670,8 @@ export default function Index() {
     try {
       const method = isEditing && selectedTask ? 'PUT' : 'POST';
       const url = isEditing && selectedTask
-        ? `http://0000243.xyz:8080/tareas/${selectedTask.id}`
-        : 'http://0000243.xyz:8080/tareas';
+        ? `http://0000243.xyz:80/tareas/${selectedTask.id}`
+        : 'http://0000243.xyz:80/tareas';
 
       const response = await fetch(url, {
         method: method,
@@ -699,7 +734,7 @@ export default function Index() {
             onPress: async () => {
               try {
                 const response = await fetch(
-                  `http://0000243.xyz:8080/tareas/${selectedTask.id}`, // Use selectedTask.id
+                  `http://0000243.xyz:80/tareas/${selectedTask.id}`, // Use selectedTask.id
                   {
                     method: 'DELETE',
                     headers: {
@@ -798,7 +833,7 @@ export default function Index() {
       };
 
       // Update the existing task instead of creating a new one
-      const response = await fetch(`http://0000243.xyz:8080/tareas/${taskToAccept.insertId}`, {
+      const response = await fetch(`http://0000243.xyz:80/tareas/${taskToAccept.insertId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',  
@@ -884,7 +919,7 @@ export default function Index() {
 
     try {
       const response = await fetch(
-        `http://0000243.xyz:8080/tareas/${taskToReject.insertId}`,
+        `http://0000243.xyz:80/tareas/${taskToReject.insertId}`,
         {
           method: 'DELETE',
           headers: { Cookie: sessionCookie },
@@ -945,7 +980,7 @@ export default function Index() {
   // Cierra la sesión del usuario
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://0000243.xyz:8080/logout', {
+      const response = await fetch('http://0000243.xyz:80/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -966,6 +1001,13 @@ export default function Index() {
       setMsgs(cur => [...cur, { id: Date.now().toString(), text: 'Error de conexión al intentar cerrar sesión.', fromMe: false }]);
     }
   };
+  
+  // New function to handle closing the AI approval modal
+  const handleCloseAiApprovalModal = () => {
+    // Reject and delete any remaining tasks
+    rejectPendingTasks(aiProcessedTasks);
+  };
+
 
 
 // ...existing code...
@@ -1329,7 +1371,9 @@ const FechaText = styled.Text`
                   )}
                 />
                 <ModalButtonCancel
-                  onPress={() => setAiApprovalModalVisible(false)}
+                  onPress={() => {handleCloseAiApprovalModal();
+                                 setAiApprovalModalVisible(false);
+                  }}
                   style={{ marginTop: 20 }}
                 >
                   <ModalButtonText>Cerrar</ModalButtonText>
