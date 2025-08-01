@@ -209,8 +209,41 @@ export default function Index() {
     }
     return -1; // No available slot found
   }, []);
+  
+  // A new function to handle rejection and deletion of multiple tasks
+  const rejectPendingTasks = useCallback(async (tasksToReject: ProcessedTask[]) => {
+    if (tasksToReject.length === 0) return;
 
-  // Función para enviar mensajes y generar respuesta simulada
+    // Use Promise.all to handle multiple DELETE requests concurrently
+    await Promise.all(
+      tasksToReject.map(async (taskToReject) => {
+        try {
+          const response = await fetch(
+            `http://0000243.xyz:8080/tareas/${taskToReject.insertId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Cookie: sessionCookie,
+              },
+              credentials: 'include',
+            }
+          );
+          if (response.ok) {
+            console.log(`Task ${taskToReject.insertId} deleted successfully.`);
+          } else {
+            console.error(`Failed to delete task ${taskToReject.insertId}:`, await response.text());
+          }
+        } catch (err) {
+          console.error(`Network error while deleting task ${taskToReject.insertId}:`, err);
+        }
+      })
+    );
+    // After attempting to delete all, clear the pending list and the AI approval modal state
+    setAiProcessedTasks([]);
+    setAiApprovalModalVisible(false);
+  }, [sessionCookie]);
+
+  // Function to send messages and generate simulated response
   const sendMsg = async (pdfUrl: string, question: string) => {
     if (!question.trim()) { // Allow empty question if PDF is being processed
       setMsgs(cur => [
@@ -893,6 +926,13 @@ export default function Index() {
       alert('Error de conexión al intentar cerrar sesión.');
     }
   };
+  
+  // New function to handle closing the AI approval modal
+  const handleCloseAiApprovalModal = () => {
+    // Reject and delete any remaining tasks
+    rejectPendingTasks(aiProcessedTasks);
+  };
+
 
 
   const FechaText = styled.Text`
@@ -1109,7 +1149,9 @@ export default function Index() {
                   )}
                 />
                 <ModalButtonCancel
-                  onPress={() => setAiApprovalModalVisible(false)}
+                  onPress={() => {handleCloseAiApprovalModal();
+                                 setAiApprovalModalVisible(false);
+                  }}
                   style={{ marginTop: 20 }}
                 >
                   <ModalButtonText>Cerrar</ModalButtonText>
