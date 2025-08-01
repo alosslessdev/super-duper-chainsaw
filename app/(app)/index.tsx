@@ -111,7 +111,7 @@ export default function Index() {
 
     setIsLoadingTasks(true);
     try {
-      const response = await fetch(`http://0000243.xyz:80/tareas/de/${userId}`, {
+      const response = await fetch(`https://0000243.xyz:80/tareas/de/${userId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ export default function Index() {
       tasksToReject.map(async (taskToReject) => {
         try {
           const response = await fetch(
-            `http://0000243.xyz:80/tareas/${taskToReject.insertId}`,
+            `https://0000243.xyz:80/tareas/${taskToReject.insertId}`,
             {
               method: 'DELETE',
               headers: {
@@ -266,7 +266,7 @@ export default function Index() {
 
     setTimeout(async () => {
       try {
-        const response = await fetch('http://0000243.xyz:80/tareas/ia/', {
+        const response = await fetch('https://0000243.xyz:80/tareas/ia/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -538,8 +538,8 @@ export default function Index() {
                 try {
                   const method = isEditing && selectedTask ? 'PUT' : 'POST';
                   const url = isEditing && selectedTask
-                    ? `http://0000243.xyz:80/tareas/${selectedTask.id}`
-                    : 'http://0000243.xyz:80/tareas'; //to fix
+                    ? `https://0000243.xyz:80/tareas/${selectedTask.id}`
+                    : 'https://0000243.xyz:80/tareas'; //to fix
 
                   const response = await fetch(url, {
                     method: method,
@@ -593,8 +593,8 @@ export default function Index() {
     try {
       const method = isEditing && selectedTask ? 'PUT' : 'POST';
       const url = isEditing && selectedTask
-        ? `http://0000243.xyz:80/tareas/${selectedTask.id}`
-        : 'http://0000243.xyz:80/tareas';
+        ? `https://0000243.xyz:80/tareas/${selectedTask.id}`
+        : 'https://0000243.xyz:80/tareas';
 
       const response = await fetch(url, {
         method: method,
@@ -655,7 +655,7 @@ export default function Index() {
             onPress: async () => {
               try {
                 const response = await fetch(
-                  `http://0000243.xyz:80/tareas/${selectedTask.id}`, // Use selectedTask.id
+                  `https://0000243.xyz:80/tareas/${selectedTask.id}`, // Use selectedTask.id
                   {
                     method: 'DELETE',
                     headers: {
@@ -754,7 +754,7 @@ export default function Index() {
       };
 
       // Update the existing task instead of creating a new one
-      const response = await fetch(`http://0000243.xyz:80/tareas/${taskToAccept.insertId}`, {
+      const response = await fetch(`https://0000243.xyz:80/tareas/${taskToAccept.insertId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',  
@@ -839,7 +839,7 @@ export default function Index() {
 
     try {
       const response = await fetch(
-        `http://0000243.xyz:80/tareas/${taskToReject.insertId}`,
+        `https://0000243.xyz:80/tareas/${taskToReject.insertId}`,
         {
           method: 'DELETE',
           headers: {
@@ -902,7 +902,7 @@ export default function Index() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://0000243.xyz:80/logout', {
+      const response = await fetch('https://0000243.xyz:80/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

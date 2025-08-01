@@ -24,7 +24,7 @@ const app = express(); // Declaración de la aplicación Express
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || (isProd ? 80 : 3000); // Puerto para escuchar
 const HOST = isProd ? '0.0.0.0' : 'localhost'; // Host para escuchar (0.0.0.0 para producción escucha en todas las interfaces)
-const corsOrigin = isProd ? process.env.CORS_ORIGIN_PROD : 'http://localhost:3000'; // Define el origen de CORS basado en el entorno
+const corsOrigin = isProd ? process.env.CORS_ORIGIN_PROD : 'https://localhost:3000'; // Define el origen de CORS basado en el entorno
 
 // Configurar CORS
 app.use(cors({
@@ -293,7 +293,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     while (attempt < 2 && !jsonRepairSuccess) {
       try {
         response = await axios.post(
-          `http://0000243.xyz:8000/secure-data`, // URL del servicio de IA
+          `https://0000243.xyz:8000/secure-data`, // URL del servicio de IA
           {
             pdf_url: pdfUrl, // URL del PDF (opcional)
             question: question // Pregunta para la IA
@@ -406,7 +406,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
 // Iniciar el servidor
 app.listen(PORT, HOST, () => {
-  console.log(`Servidor corriendo en http://${HOST}:${PORT}`);
+  console.log(`Servidor corriendo en https://${HOST}:${PORT}`);
 });
 
 // Manejo de errores del servidor (ej. puerto ya en uso)
