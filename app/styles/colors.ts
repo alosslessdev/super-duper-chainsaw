@@ -3,4 +3,5 @@ export const colors = {
   primary: '#2196F3',
   white: '#FFFFFF',
   error: '#FF5252',
+  black: '#000000',
 };

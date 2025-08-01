@@ -122,15 +122,25 @@ export default function Index() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log(data + "data")
+
         const loadedTasks: Task[] = data
           .filter((serverTask: any) => {
+          console.log(JSON.stringify(serverTask) + "serverTask")
+
+
             // Filter out AI tasks that are still pending approval
             return !pendingAiTaskIds.has(parseInt(serverTask.pk));
           })
           .map((serverTask: any) => {
             // Parse fecha_inicio to get the hour
+            console.log(serverTask.fecha_inicio + ".fecha_inicio")
+
             const startDate = new Date(serverTask.fecha_inicio);
-            const startHour = startDate.getHours();
+            console.log(startDate + "startDate")
+
+            const startHour = startDate.getUTCHours();
+              console.log(serverTask.horas + "horas");
 
             return {
               id: serverTask.pk.toString(), // Use 'pk' as the ID
@@ -520,7 +530,7 @@ export default function Index() {
                 const newEndDate = new Date(newToday);
                 newEndDate.setHours(newStartHour + duration, 0, 0, 0);
                 const new_fecha_fin = newEndDate.toISOString();
-
+                console.warn(duration + " duration conflict");
 
                 const taskPayload = {
                   titulo: taskName.trim(),
@@ -589,12 +599,15 @@ export default function Index() {
       tiempo_estimado: taskDescription.trim(),
       hecho: false, // Default value
     };
+    console.warn(duration + " duration no conflict");
 
     try {
       const method = isEditing && selectedTask ? 'PUT' : 'POST';
       const url = isEditing && selectedTask
         ? `https://0000243.xyz/tareas/${selectedTask.id}`
         : 'https://0000243.xyz/tareas';
+            console.warn(JSON.stringify(taskPayload) + " JSON post no conflict");
+
 
       const response = await fetch(url, {
         method: method,

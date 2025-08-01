@@ -383,7 +383,7 @@ const MessageModalContent = styled.View<{ type: 'success' | 'error' }>`
 `;
 
 const MessageText = styled.Text`
-  color: ${colors.white};
+  color: ${colors.black};
   font-size: 16px;
   text-align: center;
 `;

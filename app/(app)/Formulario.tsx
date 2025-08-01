@@ -142,6 +142,7 @@ const Input = styled.TextInput`
   border-width: 1px;
   border-color: #ddd;
   font-size: 16px;
+  color: #000000;
 `;
 
 const Button = styled.TouchableOpacity`
