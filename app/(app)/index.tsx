@@ -146,7 +146,7 @@ export default function Index() {
               id: serverTask.pk.toString(), // Use 'pk' as the ID
               name: serverTask.titulo, // Map 'titulo' to 'name'
               type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
-              description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
+              description: serverTask.descripcion || '', // Map 'descripcion'
               hours: serverTask.horas || 1, // Map 'horas' directly
               startHour: startHour || 0, // Use the derived start hour
             };
@@ -1052,7 +1052,7 @@ export default function Index() {
                   placeholder="Detalles adicionales"
                 />
 
-                <InputLabel>Hora de inicio (0-23):</InputLabel>
+                <InputLabel>Dentro de cuanto iniciar (0-23):</InputLabel>
                 <PickerStyled
                   selectedValue={taskStartHour}
                   onValueChange={(itemValue: string) =>
