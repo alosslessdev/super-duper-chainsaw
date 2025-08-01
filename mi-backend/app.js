@@ -197,7 +197,7 @@ app.get('/tareas/por/:id', requireLogin, async (req, res) => {
 
 // Crear una nueva tarea
 app.post('/tareas', requireLogin, async (req, res) => {
-  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo } = req.body;
+  const { fecha_inicio, fecha_fin, descripcion, prioridad, titulo, horas } = req.body;
   // Asignar siempre al usuario logueado
   const usuario = req.session.user?.id;
 
@@ -205,10 +205,10 @@ app.post('/tareas', requireLogin, async (req, res) => {
   const formattedFechaInicio = formatForMySQLDateTime(fecha_inicio);
   const formattedFechaFin = formatForMySQLDateTime(fecha_fin);
 
-  const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario)
-               VALUES (?, ?, ?, ?, ?, ?)`;
+  const sql = `INSERT INTO tarea (fecha_inicio, fecha_fin, descripcion, prioridad, titulo, usuario, horas)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`;
   try {
-    const resultados = await query(sql, [formattedFechaInicio, formattedFechaFin, descripcion, prioridad, titulo, usuario]);
+    const resultados = await query(sql, [formattedFechaInicio, formattedFechaFin, descripcion, prioridad, titulo, usuario, horas]);
     res.status(201).json({ pk: resultados.insertId, fecha_inicio: formattedFechaInicio, fecha_fin: formattedFechaFin, descripcion, prioridad, titulo, usuario });
   } catch (error) {
     console.error('Error al crear nueva tarea:', error);
