@@ -59,7 +59,7 @@ const getCurrentHourRounded = (): number => {
   const now = new Date();
   const currentHour = now.getHours();
   const currentMinutes = now.getMinutes();
-  
+  console.log(currentMinutes >= 30 ? (currentHour + 1) % 24 : currentHour + "curreentminutes")
   // Round to nearest hour (if >= 30 minutes, round up)
   return currentMinutes >= 30 ? (currentHour + 1) % 24 : currentHour;
 };
@@ -111,7 +111,7 @@ export default function Index() {
 
     setIsLoadingTasks(true);
     try {
-      const response = await fetch(`https://0000243.xyz/tareas/de/${userId}`, {
+      const response = await fetch(`https://octopus-app-jjamd.ondigitalocean.app/tareas/de/${userId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ export default function Index() {
       tasksToReject.map(async (taskToReject) => {
         try {
           const response = await fetch(
-            `https://0000243.xyz/tareas/${taskToReject.insertId}`,
+            `https://octopus-app-jjamd.ondigitalocean.app/tareas/${taskToReject.insertId}`,
             {
               method: 'DELETE',
               headers: {
@@ -276,7 +276,7 @@ export default function Index() {
 
     setTimeout(async () => {
       try {
-        const response = await fetch('https://0000243.xyz/tareas/ia/', {
+        const response = await fetch('https://octopus-app-jjamd.ondigitalocean.app/tareas/ia/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -548,8 +548,8 @@ export default function Index() {
                 try {
                   const method = isEditing && selectedTask ? 'PUT' : 'POST';
                   const url = isEditing && selectedTask
-                    ? `https://0000243.xyz/tareas/${selectedTask.id}`
-                    : 'https://0000243.xyz/tareas'; //to fix
+                    ? `https://octopus-app-jjamd.ondigitalocean.app/tareas/${selectedTask.id}`
+                    : 'https://octopus-app-jjamd.ondigitalocean.app/tareas'; //to fix
 
                   const response = await fetch(url, {
                     method: method,
@@ -604,8 +604,8 @@ export default function Index() {
     try {
       const method = isEditing && selectedTask ? 'PUT' : 'POST';
       const url = isEditing && selectedTask
-        ? `https://0000243.xyz/tareas/${selectedTask.id}`
-        : 'https://0000243.xyz/tareas';
+        ? `https://octopus-app-jjamd.ondigitalocean.app/tareas/${selectedTask.id}`
+        : 'https://octopus-app-jjamd.ondigitalocean.app/tareas';
             console.warn(JSON.stringify(taskPayload) + " JSON post no conflict");
 
 
@@ -668,7 +668,7 @@ export default function Index() {
             onPress: async () => {
               try {
                 const response = await fetch(
-                  `https://0000243.xyz/tareas/${selectedTask.id}`, // Use selectedTask.id
+                  `https://octopus-app-jjamd.ondigitalocean.app/tareas/${selectedTask.id}`, // Use selectedTask.id
                   {
                     method: 'DELETE',
                     headers: {
@@ -767,7 +767,7 @@ export default function Index() {
       };
 
       // Update the existing task instead of creating a new one
-      const response = await fetch(`https://0000243.xyz/tareas/${taskToAccept.insertId}`, {
+      const response = await fetch(`https://octopus-app-jjamd.ondigitalocean.app/tareas/${taskToAccept.insertId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',  
@@ -852,7 +852,7 @@ export default function Index() {
 
     try {
       const response = await fetch(
-        `https://0000243.xyz/tareas/${taskToReject.insertId}`,
+        `https://octopus-app-jjamd.ondigitalocean.app/tareas/${taskToReject.insertId}`,
         {
           method: 'DELETE',
           headers: {
@@ -915,7 +915,7 @@ export default function Index() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('https://0000243.xyz/logout', {
+      const response = await fetch('https://octopus-app-jjamd.ondigitalocean.app/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

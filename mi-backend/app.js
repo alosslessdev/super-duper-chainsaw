@@ -299,7 +299,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
     while (attempt < 2 && !jsonRepairSuccess) {
       try {
         response = await axios.post(
-          `https://0000243.xyz:8000/secure-data`, // URL del servicio de IA
+          `https://octopus-app-jjamd.ondigitalocean.app:8000/secure-data`, // URL del servicio de IA
           {
             pdf_url: pdfUrl, // URL del PDF (opcional)
             question: question // Pregunta para la IA
