@@ -409,7 +409,7 @@ app.post('/tareas/ia/', requireLogin, async (req, res) => {
 
 // Iniciar el servidor
 app.listen(PORT, HOST, () => {
-  console.log(`Servidor corriendo en http://${HOST}:${PORT}`);
+  console.log(`Servidor corriendo en https://${HOST}:${PORT}`);
 });
 
 var httpsServer = https.createServer(credentials, app);
