@@ -20,10 +20,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.growin.growin",
       "config": {
-        "googleSignIn": {
-          "apiKey": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com",
-          "androidClientId": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com"
-        }
+        
       }
     },
     "web": {

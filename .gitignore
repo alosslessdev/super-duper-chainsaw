@@ -49,3 +49,5 @@ mi-backend/.env
 .expo/types/router.d.ts
 .vscode/
 .expo/
+android/
+ios/
