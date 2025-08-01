@@ -27,7 +27,7 @@ export default function SettingsScreen() {
       if (response.ok) {
         // Puedes reemplazar alert por un Toast o componente propio
         alert('Sesión cerrada exitosamente.');
-        router.replace('/login'); // Navega a pantalla de login o inicial
+        router.replace('../login'); // Navigate to a login or initial screen, assuming '/' is your login page
       } else {
         const errorData = await response.json();
         alert(`Error al cerrar sesión: ${errorData.error || response.statusText}`);

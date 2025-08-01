@@ -2,9 +2,6 @@ import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { FlatList } from 'react-native';
 import styled from 'styled-components/native';
-
-
-
 import { colors } from '../styles/colors';
 
 type BubbleProps = {
