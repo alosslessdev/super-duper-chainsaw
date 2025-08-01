@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mytodo-expo",
-    "slug": "mytodo-expo",
+    "name": "growin",
+    "slug": "growin",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -63,9 +63,10 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8e255604-a090-40c0-a636-5f2bf831ab85"
+        "projectId": "20245cd2-5830-4161-a2d8-3aa890897a4f"
       },
       "googleWebClientId": "1015456684061-86pj6f933utkjpui9uj62fmqntt5duf4.apps.googleusercontent.com"
-    }
+    },
+    "owner": "francisco278herrera"
   }
 }

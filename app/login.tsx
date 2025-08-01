@@ -214,13 +214,9 @@ const LoginScreen = () => {
           <ModalContent>
             <ModalTitle>Registrarse con:</ModalTitle>
 
-            <SocialButton onPress={handleGoogleLogin} disabled={!request || loading}> 
-              {loading ? <ActivityIndicator color="white" /> : (
-                <>
+            <SocialButton onPress={() => handleSocialRegister('Google')}>
                   <FontAwesome name="google" size={20} color="white" />
                   <SocialText>Gmail</SocialText>
-                </>
-              )}
             </SocialButton>
 
             <SocialButton onPress={() => handleSocialRegister('Facebook')}>
