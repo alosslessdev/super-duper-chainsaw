@@ -74,7 +74,7 @@ const LoginScreen = () => {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://0000243.xyz:80/login', {
+      const response = await fetch('https://0000243.xyz:80/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -135,7 +135,7 @@ const LoginScreen = () => {
       const googleEmail = userInfo.email;
 
       // Send Google email to your backend for registration/login
-      const backendResponse = await fetch('http://0000243.xyz:80/usuarios', {
+      const backendResponse = await fetch('https://0000243.xyz:80/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
