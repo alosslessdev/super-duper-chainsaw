@@ -47,3 +47,5 @@ __pycache__
 mi-backend/.app.js.swp
 mi-backend/.env
 .expo/types/router.d.ts
+.vscode/
+.expo/
