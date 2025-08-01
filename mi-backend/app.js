@@ -22,7 +22,7 @@ const app = express(); // Declaración de la aplicación Express
 
 // Determinar host y puerto basándose en NODE_ENV
 const isProd = process.env.NODE_ENV === 'production';
-const PORT = process.env.PORT || (isProd ? 8080 : 3000); // Puerto para escuchar
+const PORT = process.env.PORT || (isProd ? 80 : 3000); // Puerto para escuchar
 const HOST = isProd ? '0.0.0.0' : 'localhost'; // Host para escuchar (0.0.0.0 para producción escucha en todas las interfaces)
 const corsOrigin = isProd ? process.env.CORS_ORIGIN_PROD : 'http://localhost:3000'; // Define el origen de CORS basado en el entorno
 
