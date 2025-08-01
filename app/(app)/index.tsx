@@ -5,11 +5,9 @@ import { Picker as RNPicker } from '@react-native-picker/picker';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import * as FileSystem from 'expo-file-system';
 import { Stack, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Alert, FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
-import 'react-native-get-random-values';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform } from 'react-native';
 import 'react-native-get-random-values';
 import styled from 'styled-components/native';
 import AnalogClock from '../(app)/analogClock';
@@ -248,126 +246,6 @@ export default function Index() {
     return -1; // No available slot found
   }, []);
 
-
-
-  // State for loading tasks from the server
-  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
-
-  // Add state to prevent duplicate processing
-  const [processingTaskIds, setProcessingTaskIds] = useState<Set<number>>(new Set());
-  
-  // Track AI task IDs that are pending approval (should not show in main task list)
-  const [pendingAiTaskIds, setPendingAiTaskIds] = useState<Set<number>>(new Set());
-
-  // Function to fetch tasks from the server
-  const fetchTasks = useCallback(async () => {
-    const userId = getUserId();
-    if (!userId) {
-      console.log('User ID not available, cannot fetch tasks.');
-      return;
-    }
-
-    setIsLoadingTasks(true);
-    try {
-      const response = await fetch(`http://0000243.xyz:8080/tareas/de/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Cookie: sessionCookie,
-        },
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const loadedTasks: Task[] = data
-          .filter((serverTask: any) => {
-            // Filter out AI tasks that are still pending approval
-            return !pendingAiTaskIds.has(parseInt(serverTask.pk));
-          })
-          .map((serverTask: any) => {
-            // Parse fecha_inicio to get the hour
-            const startDate = new Date(serverTask.fecha_inicio);
-            const startHour = startDate.getHours();
-
-            return {
-              id: serverTask.pk.toString(), // Use 'pk' as the ID
-              name: serverTask.titulo, // Map 'titulo' to 'name'
-              type: serverTask.tipo || 'general', // Map 'tipo' to 'type', default to 'general'
-              description: serverTask.descripcionInvalidoAquiNoExiste || '', // Map 'descripcion'
-              hours: serverTask.horas || 1, // Map 'horas' directly
-              startHour: startHour || 0, // Use the derived start hour
-            };
-          });
-        setTasks(loadedTasks);
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to fetch tasks:', errorData.error || response.statusText);
-        Alert.alert('Error', `No se pudieron cargar las tareas: ${errorData.error || 'Error desconocido'}`);
-      }
-    } catch (error) {
-      console.error('Network error fetching tasks:', error);
-      Alert.alert('Error', 'No se pudo conectar al servidor para cargar las tareas.');
-    } finally {
-      setIsLoadingTasks(false);
-    }
-  }, [sessionCookie, pendingAiTaskIds]);
-
-  // Fetch tasks on component mount
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-
-  // Helper function to find the next available start hour for a task
-  const findNextAvailableHour = useCallback((duration: number, existingTasks: Task[], preferredStartHour?: number): number => {
-    // Sort tasks by start hour to ensure correct conflict checking
-    const sortedTasks = [...existingTasks].sort((a, b) => a.startHour - b.startHour);
-    
-    // If a preferred start hour is provided, try that first
-    if (preferredStartHour !== undefined) {
-      let isConflict = false;
-      const newEnd = preferredStartHour + duration;
-      
-      // Check if we don't exceed 24 hours
-      if (newEnd <= 24) {
-        for (const existingTask of sortedTasks) {
-          const existingStart = existingTask.startHour;
-          const existingEnd = existingTask.startHour + existingTask.hours;
-
-          // Check for overlap
-          if (!(newEnd <= existingStart || preferredStartHour >= existingEnd)) {
-            isConflict = true;
-            break;
-          }
-        }
-        if (!isConflict) {
-          return preferredStartHour;
-        }
-      }
-    }
-
-    // If preferred hour doesn't work or wasn't provided, find next available
-    for (let hour = 0; hour <= 24 - duration; hour++) {
-      let isConflict = false;
-      const newEnd = hour + duration;
-      for (const existingTask of sortedTasks) {
-        const existingStart = existingTask.startHour;
-        const existingEnd = existingTask.startHour + existingTask.hours;
-
-        // Check for overlap: new task starts before existing task ends, AND new task ends after existing task starts
-        if (!(newEnd <= existingStart || hour >= existingEnd)) {
-          isConflict = true;
-          break;
-        }
-      }
-      if (!isConflict) {
-        return hour;
-      }
-    }
-    return -1; // No available slot found
-  }, []);
-
   // Formato de fecha para mostrar
   const isToday = formatDateToISO(selectedDate) === formatDateToISO(new Date());
   const formattedDisplayDate = `${selectedDate.toLocaleDateString('es-ES', {
@@ -412,11 +290,7 @@ export default function Index() {
         },
       ]);
     } else {
-      const userMsg: Msg = {
-        id: Date.now().toString(),
-        text: question.trim(),
-        fromMe: true,
-      };
+      
       setMsgs(cur => [...cur, userMsg]);
       setInput('');
       const userMsg: Msg = {
@@ -1229,6 +1103,7 @@ const FechaText = styled.Text`
         return '#e0f0ff'; // azul por defecto
     }
   };
+
   // Renderizado principal de la pantalla
   return (
     <>
@@ -1552,7 +1427,6 @@ const FechaText = styled.Text`
 };
 
 // --- Estilos ---
-const Bubble = styled.View.withConfig({}) <{ fromMe: boolean }>`
 
 const FechaText = styled.Text`
   font-size: 18px;
@@ -1561,13 +1435,6 @@ const FechaText = styled.Text`
   text-align: center;
   margin-bottom: 10px;
   text-transform: capitalize;
-`;
-
-const TouchableTaskItem = styled.TouchableOpacity`
-  background-color: #e0f0ff;
-  border-radius: 10px;
-  padding: 10px;
-  margin-bottom: 10px;
 `;
 
 // Las interfaces ya estaban definidas al principio, no es necesario repetirlas aquí.
@@ -1600,7 +1467,7 @@ const BubbleText = styled.Text<BubbleProps>`
 `;
 
 const Container = styled.View`
-  flex: 1;
+  flex: 1;  
   background-color: #fff;
   padding: 16px;
 `;
@@ -1801,15 +1668,6 @@ const ModalButtonComplete = styled.Pressable`
   align-items: center;
 `;
 
-const ModalButtonComplete = styled.Pressable`
-  background-color: #4CD964; /* verde */
-  padding: 10px 20px;
-  border-radius: 8px;
-  flex: 1;
-  margin: 0 5px;
-  justify-content: center;
-  align-items: center;
-`;
 
 const ModalButtonText = styled.Text`
   color: #fff;            /* White color to contrast with the red button */
@@ -1953,17 +1811,4 @@ const EmptyListText = styled.Text`
   color: #777;
 `;
 
-
-const LoadingText = styled.Text`
-  text-align: center;
-  margin-top: 20px;
-  font-size: 16px;
-  color: #555;
-`;
-
-const EmptyListText = styled.Text`
-  text-align: center;
-  margin-top: 20px;
-  font-size: 16px;
-  color: #777;
-`;
+}
