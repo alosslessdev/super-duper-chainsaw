@@ -281,7 +281,7 @@ const Label = styled.Text`
 `;
 
 const Input = styled.TextInput`
-  background-color: ${colors.white};
+  background-color: ${colors.black};
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 15px;
@@ -383,7 +383,7 @@ const MessageModalContent = styled.View<{ type: 'success' | 'error' }>`
 `;
 
 const MessageText = styled.Text`
-  color: ${colors.white};
+  color: ${colors.black};
   font-size: 16px;
   text-align: center;
 `;
