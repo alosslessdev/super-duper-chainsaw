@@ -30,6 +30,18 @@ export default function AppLayout() {
           }}
         />
         <Drawer.Screen
+          name="analogClock"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="Formulario"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
           name="components/CustomDrawerContent"
           options={{
             drawerItemStyle: { display: 'none' },
