@@ -2,10 +2,6 @@ import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { FlatList } from 'react-native';
 import styled from 'styled-components/native';
-
-
-
-
 import { colors } from '../styles/colors';
 
 type BubbleProps = {
@@ -87,7 +83,6 @@ const Bubble = styled.View<BubbleProps>`
   border-radius: 12px;
 align-self: ${(props: BubbleProps) => (props.fromMe ? 'flex-end' : 'flex-start')};
 background-color: ${(props: BubbleProps) => (props.fromMe ? `${colors.primary}33` : '#eee')};
-
 `;
 
 const BubbleText = styled.Text`
